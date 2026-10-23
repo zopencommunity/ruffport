@@ -8,7 +8,8 @@ node('linux') {
       build job: 'Port-Pipeline', parameters: [
         string(name: 'PORT_GITHUB_REPO', value: 'https://github.com/zopencommunity/ruffport.git'),
         string(name: 'PORT_DESCRIPTION', value: 'An extremely fast Python linter and code formatter'),
-        string(name: 'BUILD_LINE', value: 'STABLE')
+        string(name: 'BUILD_LINE', value: 'STABLE'),
+        booleanParam(name: 'PUBLISH_PYTHON_WHEEL', value: true)
       ]
     }
 }
