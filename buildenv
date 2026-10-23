@@ -40,6 +40,10 @@ zopen_check_results() {
   echo "expectedTotalTests:${total}"
 }
 
+zopen_get_version() {
+  echo "${RUFF_VERSION}"
+}
+
 zopen_init() {
   rm -f ruff
   if ! curl -fL --retry 3 -o ruff "${RUFF_BINARY_URL}"; then
