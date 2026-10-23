@@ -1,0 +1,106 @@
+# bump: ruff-version /RUFF_VERSION="(.*)"/ https://github.com/astral-sh/ruff.git|semver:*
+RUFF_VERSION="0.17.2"
+
+export ZOPEN_PROJECT_NAME="ruff"
+export ZOPEN_NAME="ruff-${RUFF_VERSION}"
+export ZOPEN_BUILD_LINE="STABLE"
+export ZOPEN_STABLE_URL="https://github.com/astral-sh/ruff.git"
+export ZOPEN_STABLE_TAG="${RUFF_VERSION}"
+export ZOPEN_STABLE_TYPE="BARE"
+export ZOPEN_DEV_URL="https://github.com/astral-sh/ruff.git"
+export ZOPEN_DEV_TYPE="BARE"
+export ZOPEN_CATEGORIES="development"
+export ZOPEN_TYPE="BARE"
+export ZOPEN_BOOTSTRAP="skip"
+export ZOPEN_CONFIGURE="skip"
+export ZOPEN_MAKE="skip"
+export ZOPEN_CHECK="zopen_custom_check"
+export ZOPEN_INSTALL="zopen_custom_install"
+
+# Cache key for the published cross-compiled asset.
+RUFF_ASSET_REVISION="e104064398bbca31"
+RUFF_BINARY_URL="https://github.com/zopencommunity/ruffport/releases/download/v${RUFF_VERSION}/ruff?rev=${RUFF_ASSET_REVISION}"
+
+zopen_check_results() {
+  dir="$1"; pfx="$2"; chk="${dir}/${pfx}_check.log"
+  passed=$(grep -c "^PASS:" "${chk}" 2>/dev/null)
+  failed=$(grep -c "^FAIL:" "${chk}" 2>/dev/null)
+  passed=${passed:-0}; failed=${failed:-0}
+  total=$((passed + failed))
+  if [ "${total}" -eq 0 ]; then failed=1; total=1; fi
+  echo "actualFailures:${failed}"
+  echo "totalTests:${total}"
+}
+
+zopen_init() {
+  rm -f ruff
+  if ! curl -fL --retry 3 -o ruff "${RUFF_BINARY_URL}"; then
+    printError "Could not download the ruff binary from ${RUFF_BINARY_URL}"
+    return 1
+  fi
+
+  _ruff_bytes=$(wc -c < ruff | tr -d ' ')
+  if [ "${_ruff_bytes}" -lt 10000000 ] || [ "${_ruff_bytes}" -gt 300000000 ]; then
+    printError "Downloaded ruff binary has an unexpected size: ${_ruff_bytes} bytes"
+    return 1
+  fi
+
+  chtag -b ./ruff
+  chmod +x ./ruff
+  printInfo "Downloaded ruff binary: ${_ruff_bytes} bytes"
+}
+
+zopen_custom_check() {
+  _ruff="$(pwd)/ruff"
+  _work="$(pwd)/.ruff-check"
+  _pass=0
+  _fail=0
+
+  _check() {
+    if ( eval "$2" ) > "${_work}/last.log" 2>&1; then
+      echo "PASS: $1"
+      _pass=$((_pass + 1))
+    else
+      echo "FAIL: $1" >&2
+      sed 's/^/       /' "${_work}/last.log" 2>/dev/null | head -20 >&2
+      _fail=$((_fail + 1))
+    fi
+  }
+
+  rm -rf "${_work}"
+  mkdir -p "${_work}/nested"
+
+  # Emit known ASCII bytes independent of the shell's active EBCDIC mode.
+  printf '\151\155\160\157\162\164\040\157\163\012\170\075\061\012' > "${_work}/bad.py"
+  printf '\160\162\151\156\164\050\042\157\153\042\051\012' > "${_work}/nested/good.py"
+  chtag -tc ISO8859-1 "${_work}/bad.py" "${_work}/nested/good.py"
+
+  _check "ruff reports its version" \
+    "'${_ruff}' --version | grep -q '${RUFF_VERSION}'"
+  _check "ruff detects a lint violation" \
+    "'${_ruff}' check '${_work}/bad.py' >'${_work}/lint.log' 2>&1; rc=\$?; test \$rc -eq 1 && grep -q F401 '${_work}/lint.log'"
+  _check "ruff applies a safe lint fix" \
+    "cp '${_work}/bad.py' '${_work}/fix.py' && '${_ruff}' check --fix '${_work}/fix.py' && '${_ruff}' check '${_work}/fix.py'"
+  _check "ruff detects unformatted source" \
+    "'${_ruff}' format --check '${_work}/bad.py' >'${_work}/format-check.log' 2>&1; test \$? -eq 1"
+  _check "ruff formats source" \
+    "'${_ruff}' format '${_work}/bad.py' && '${_ruff}' format --check '${_work}/bad.py'"
+  _check "ruff walks a source directory" \
+    "'${_ruff}' check '${_work}/nested'"
+
+  echo "ruff ${RUFF_VERSION} -- ${_pass} passed, ${_fail} failed"
+  rm -rf "${_work}"
+  [ "${_fail}" -eq 0 ]
+}
+
+zopen_custom_install() {
+  mkdir -p "${ZOPEN_INSTALL_DIR}/bin"
+  cp ./ruff "${ZOPEN_INSTALL_DIR}/bin/ruff"
+  chtag -b "${ZOPEN_INSTALL_DIR}/bin/ruff"
+  chmod +x "${ZOPEN_INSTALL_DIR}/bin/ruff"
+}
+
+zopen_append_to_validate_install() {
+  echo "ruff --version"
+  echo "ruff --help >/dev/null"
+}

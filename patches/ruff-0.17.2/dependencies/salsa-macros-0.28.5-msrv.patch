@@ -1,0 +1,11 @@
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/lib.rs	2026-10-22 16:18:36.571594165 -0400
+@@ -8,6 +8,7 @@
+ //! behind each macro.
+ 
+ #![recursion_limit = "256"]
++#![feature(extract_if, let_chains)]
+ 
+ #[macro_use]
+ extern crate quote;

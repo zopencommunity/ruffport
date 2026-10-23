@@ -1,0 +1,11 @@
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/lib.rs	2026-10-22 16:18:57.761744414 -0400
+@@ -249,6 +249,7 @@
+ //! [tracked functions in the Salsa book]: https://salsa-rs.github.io/salsa/overview.html#tracked-functions
+ //! [tracked structs in the Salsa book]: https://salsa-rs.github.io/salsa/overview.html#tracked-structs
+ 
++#![feature(let_chains)]
+ #![deny(clippy::undocumented_unsafe_blocks)]
+ #![forbid(unsafe_op_in_unsafe_fn)]
+ 

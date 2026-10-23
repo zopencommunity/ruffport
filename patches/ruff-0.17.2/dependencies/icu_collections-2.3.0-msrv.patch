@@ -1,0 +1,11 @@
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/lib.rs	2026-10-22 16:20:54.762574011 -0400
+@@ -3,6 +3,7 @@
+ // (online at: https://github.com/unicode-org/icu4x/blob/main/LICENSE ).
+ 
+ // https://github.com/unicode-org/icu4x/blob/main/documents/process/boilerplate.md#library-annotations
++#![feature(let_chains, unsigned_is_multiple_of)]
+ #![cfg_attr(not(any(test, doc)), no_std)]
+ #![cfg_attr(
+     not(test),

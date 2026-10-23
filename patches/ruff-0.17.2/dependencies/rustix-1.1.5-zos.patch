@@ -1,0 +1,3584 @@
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/backend/libc/fs/dir.rs b/src/backend/libc/fs/dir.rs
+--- a/src/backend/libc/fs/dir.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/backend/libc/fs/dir.rs	2026-10-23 09:18:49.495745317 -0400
+@@ -199,14 +199,26 @@
+                 check_dirent_layout(dirent);
+ 
+                 let result = DirEntry {
+-                    #[cfg(not(any(
+-                        solarish,
+-                        target_os = "aix",
+-                        target_os = "haiku",
+-                        target_os = "nto",
+-                        target_os = "vita"
+-                    )))]
+-                    d_type: dirent.d_type,
++                    d_type: {
++                        #[cfg(not(any(
++                            solarish,
++                            target_os = "aix",
++                            target_os = "haiku",
++                            target_os = "nto",
++                            target_os = "vita",
++                            target_os = "zos"
++                        )))]
++                        { dirent.d_type }
++                        #[cfg(any(
++                            solarish,
++                            target_os = "aix",
++                            target_os = "haiku",
++                            target_os = "nto",
++                            target_os = "vita",
++                            target_os = "zos"
++                        ))]
++                        { c::DT_UNKNOWN }
++                    },
+ 
+                     #[cfg(not(any(freebsdlike, netbsdlike, target_os = "vita")))]
+                     d_ino: dirent.d_ino,
+@@ -317,13 +329,7 @@
+ /// `struct dirent`
+ #[derive(Debug)]
+ pub struct DirEntry {
+-    #[cfg(not(any(
+-        solarish,
+-        target_os = "aix",
+-        target_os = "haiku",
+-        target_os = "nto",
+-        target_os = "vita"
+-    )))]
++    // d_type: z/OS dirent has no d_type; always report DT_UNKNOWN
+     d_type: u8,
+ 
+     #[cfg(not(any(freebsdlike, netbsdlike, target_os = "vita")))]
+@@ -374,7 +380,8 @@
+         target_os = "aix",
+         target_os = "haiku",
+         target_os = "nto",
+-        target_os = "vita"
++        target_os = "vita",
++        target_os = "zos"
+     )))]
+     #[inline]
+     pub fn file_type(&self) -> FileType {
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/backend/libc/fs/makedev.rs b/src/backend/libc/fs/makedev.rs
+--- a/src/backend/libc/fs/makedev.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/backend/libc/fs/makedev.rs	2026-10-23 09:18:49.503164965 -0400
+@@ -12,6 +12,7 @@
+     apple,
+     solarish,
+     target_os = "aix",
++    target_os = "zos",
+     target_os = "android",
+     target_os = "emscripten",
+ )))]
+@@ -58,10 +59,10 @@
+     unsafe { c::makedev(maj as i32, min as i32) }
+ }
+ 
+-#[cfg(target_os = "aix")]
++#[cfg(any(target_os = "aix", target_os = "zos"))]
+ #[inline]
+ pub(crate) fn makedev(maj: u32, min: u32) -> Dev {
+-    // AIX's `makedev` oddly is `unsafe`.
++    // AIX/z/OS `makedev` is `unsafe`.
+     unsafe { c::makedev(maj, min) }
+ }
+ 
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/backend/libc/fs/types.rs b/src/backend/libc/fs/types.rs
+--- a/src/backend/libc/fs/types.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/backend/libc/fs/types.rs	2026-10-23 09:18:49.503838548 -0400
+@@ -385,6 +385,8 @@
+         /// functions, use [`rustix::fs::fcntl_setfl`] instead.
+         #[cfg(not(any(
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "cygwin",
+             target_os = "espidf",
+             target_os = "haiku",
+@@ -626,6 +628,8 @@
+     #[cfg(not(any(
+         solarish,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -791,6 +795,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "haiku",
+             target_os = "hurd",
+             target_os = "wasi",
+@@ -801,6 +807,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "haiku",
+             target_os = "hurd",
+             target_os = "wasi",
+@@ -811,6 +819,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "cygwin",
+             target_os = "emscripten",
+             target_os = "fuchsia",
+@@ -826,6 +836,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "haiku",
+             target_os = "hurd",
+             target_os = "emscripten",
+@@ -837,6 +849,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "haiku",
+             target_os = "hurd",
+             target_os = "emscripten",
+@@ -848,6 +862,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "haiku",
+             target_os = "hurd",
+             target_os = "emscripten",
+@@ -859,6 +875,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "haiku",
+             target_os = "hurd",
+             target_os = "emscripten",
+@@ -889,6 +907,8 @@
+         #[cfg(any(
+             linux_kernel,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "emscripten",
+             target_os = "fuchsia"
+         ))]
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/backend/libc/fs/types.rs.orig b/src/backend/libc/fs/types.rs.orig
+--- a/src/backend/libc/fs/types.rs.orig	1969-12-31 19:00:00.000000000 -0500
++++ b/src/backend/libc/fs/types.rs.orig	2006-07-23 21:21:28.000000000 -0400
+@@ -0,0 +1,1179 @@
++use crate::backend::c;
++#[cfg(not(target_os = "horizon"))]
++use crate::ffi;
++use bitflags::bitflags;
++
++#[cfg(not(any(target_os = "espidf", target_os = "horizon", target_os = "vita")))]
++bitflags! {
++    /// `*_OK` constants for use with [`accessat`].
++    ///
++    /// [`accessat`]: fn.accessat.html
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct Access: ffi::c_int {
++        /// `R_OK`
++        const READ_OK = c::R_OK;
++
++        /// `W_OK`
++        const WRITE_OK = c::W_OK;
++
++        /// `X_OK`
++        const EXEC_OK = c::X_OK;
++
++        /// `F_OK`
++        const EXISTS = c::F_OK;
++
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++#[cfg(not(any(target_os = "espidf", target_os = "horizon", target_os = "redox")))]
++bitflags! {
++    /// `AT_*` constants for use with [`openat`], [`statat`], and other `*at`
++    /// functions.
++    ///
++    /// [`openat`]: crate::fs::openat
++    /// [`statat`]: crate::fs::statat
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct AtFlags: u32 {
++        /// `AT_SYMLINK_NOFOLLOW`
++        const SYMLINK_NOFOLLOW = bitcast!(c::AT_SYMLINK_NOFOLLOW);
++
++        /// `AT_EACCESS`
++        #[cfg(not(target_os = "android"))]
++        const EACCESS = bitcast!(c::AT_EACCESS);
++
++        /// `AT_REMOVEDIR`
++        const REMOVEDIR = bitcast!(c::AT_REMOVEDIR);
++
++        /// `AT_SYMLINK_FOLLOW`
++        const SYMLINK_FOLLOW = bitcast!(c::AT_SYMLINK_FOLLOW);
++
++        /// `AT_NO_AUTOMOUNT`
++        #[cfg(any(linux_like, target_os = "fuchsia"))]
++        const NO_AUTOMOUNT = bitcast!(c::AT_NO_AUTOMOUNT);
++
++        /// `AT_EMPTY_PATH`
++        #[cfg(any(
++            linux_kernel,
++            target_os = "freebsd",
++            target_os = "fuchsia",
++        ))]
++        const EMPTY_PATH = bitcast!(c::AT_EMPTY_PATH);
++
++        /// `AT_RESOLVE_BENEATH`
++        #[cfg(target_os = "freebsd")]
++        const RESOLVE_BENEATH = bitcast!(c::AT_RESOLVE_BENEATH);
++
++        /// `AT_STATX_SYNC_AS_STAT`
++        #[cfg(all(target_os = "linux", target_env = "gnu"))]
++        const STATX_SYNC_AS_STAT = bitcast!(c::AT_STATX_SYNC_AS_STAT);
++
++        /// `AT_STATX_FORCE_SYNC`
++        #[cfg(all(target_os = "linux", target_env = "gnu"))]
++        const STATX_FORCE_SYNC = bitcast!(c::AT_STATX_FORCE_SYNC);
++
++        /// `AT_STATX_DONT_SYNC`
++        #[cfg(all(target_os = "linux", target_env = "gnu"))]
++        const STATX_DONT_SYNC = bitcast!(c::AT_STATX_DONT_SYNC);
++
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++#[cfg(target_os = "horizon")]
++bitflags! {
++    /// `AT_*` constants for use with [`openat`], [`statat`], and other `*at`
++    /// functions.
++    ///
++    /// [`openat`]: crate::fs::openat
++    /// [`statat`]: crate::fs::statat
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct AtFlags: u32 {
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++#[cfg(not(target_os = "horizon"))]
++bitflags! {
++    /// `S_I*` constants for use with [`openat`], [`chmodat`], and [`fchmod`].
++    ///
++    /// [`openat`]: crate::fs::openat
++    /// [`chmodat`]: crate::fs::chmodat
++    /// [`fchmod`]: crate::fs::fchmod
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct Mode: RawMode {
++        /// `S_IRWXU`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const RWXU = c::S_IRWXU as RawMode;
++
++        /// `S_IRUSR`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const RUSR = c::S_IRUSR as RawMode;
++
++        /// `S_IWUSR`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const WUSR = c::S_IWUSR as RawMode;
++
++        /// `S_IXUSR`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const XUSR = c::S_IXUSR as RawMode;
++
++        /// `S_IRWXG`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const RWXG = c::S_IRWXG as RawMode;
++
++        /// `S_IRGRP`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const RGRP = c::S_IRGRP as RawMode;
++
++        /// `S_IWGRP`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const WGRP = c::S_IWGRP as RawMode;
++
++        /// `S_IXGRP`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const XGRP = c::S_IXGRP as RawMode;
++
++        /// `S_IRWXO`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const RWXO = c::S_IRWXO as RawMode;
++
++        /// `S_IROTH`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const ROTH = c::S_IROTH as RawMode;
++
++        /// `S_IWOTH`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const WOTH = c::S_IWOTH as RawMode;
++
++        /// `S_IXOTH`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const XOTH = c::S_IXOTH as RawMode;
++
++        /// `S_ISUID`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const SUID = c::S_ISUID as RawMode;
++
++        /// `S_ISGID`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const SGID = c::S_ISGID as RawMode;
++
++        /// `S_ISVTX`
++        #[cfg(not(any(target_os = "espidf", target_os = "vita")))]
++        const SVTX = c::S_ISVTX as RawMode;
++
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++#[cfg(target_os = "horizon")]
++bitflags! {
++    /// `S_I*` constants for use with [`openat`], [`chmodat`], and [`fchmod`].
++    ///
++    /// [`openat`]: crate::fs::openat
++    /// [`chmodat`]: crate::fs::chmodat
++    /// [`fchmod`]: crate::fs::fchmod
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct Mode: RawMode {
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++#[cfg(not(target_os = "espidf"))]
++impl Mode {
++    /// Construct a `Mode` from the mode bits of the `st_mode` field of a
++    /// `Mode`.
++    #[inline]
++    pub const fn from_raw_mode(st_mode: RawMode) -> Self {
++        Self::from_bits_truncate(st_mode & !c::S_IFMT as RawMode)
++    }
++
++    /// Construct an `st_mode` value from a `Mode`.
++    #[inline]
++    pub const fn as_raw_mode(self) -> RawMode {
++        self.bits()
++    }
++}
++
++#[cfg(not(target_os = "espidf"))]
++impl From<RawMode> for Mode {
++    /// Support conversions from raw mode values to `Mode`.
++    ///
++    /// ```
++    /// use rustix::fs::{Mode, RawMode};
++    /// assert_eq!(Mode::from(0o700), Mode::RWXU);
++    /// ```
++    #[inline]
++    fn from(st_mode: RawMode) -> Self {
++        Self::from_raw_mode(st_mode)
++    }
++}
++
++#[cfg(not(target_os = "espidf"))]
++impl From<Mode> for RawMode {
++    /// Support conversions from `Mode` to raw mode values.
++    ///
++    /// ```
++    /// use rustix::fs::{Mode, RawMode};
++    /// assert_eq!(RawMode::from(Mode::RWXU), 0o700);
++    /// ```
++    #[inline]
++    fn from(mode: Mode) -> Self {
++        mode.as_raw_mode()
++    }
++}
++
++bitflags! {
++    /// `O_*` constants for use with [`openat`].
++    ///
++    /// [`openat`]: crate::fs::openat
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct OFlags: u32 {
++        /// `O_ACCMODE`
++        const ACCMODE = bitcast!(c::O_ACCMODE);
++
++        /// Similar to `ACCMODE`, but just includes the read/write flags, and
++        /// no other flags.
++        ///
++        /// On some platforms, `PATH` may be included in `ACCMODE`, when
++        /// sometimes we really just want the read/write bits. Caution is
++        /// indicated, as the presence of `PATH` may mean that the read/write
++        /// bits don't have their usual meaning.
++        const RWMODE = bitcast!(c::O_RDONLY | c::O_WRONLY | c::O_RDWR);
++
++        /// `O_APPEND`
++        const APPEND = bitcast!(c::O_APPEND);
++
++        /// `O_CREAT`
++        #[doc(alias = "CREAT")]
++        const CREATE = bitcast!(c::O_CREAT);
++
++        /// `O_DIRECTORY`
++        #[cfg(not(any(target_os = "espidf", target_os = "horizon")))]
++        const DIRECTORY = bitcast!(c::O_DIRECTORY);
++
++        /// `O_DSYNC`
++        #[cfg(not(any(target_os = "dragonfly", target_os = "espidf", target_os = "horizon", target_os = "l4re", target_os = "redox", target_os = "vita")))]
++        const DSYNC = bitcast!(c::O_DSYNC);
++
++        /// `O_EXCL`
++        const EXCL = bitcast!(c::O_EXCL);
++
++        /// `O_FSYNC`
++        #[cfg(any(
++            bsd,
++            all(target_os = "linux", not(target_env = "musl")),
++        ))]
++        const FSYNC = bitcast!(c::O_FSYNC);
++
++        /// `O_NOFOLLOW`
++        #[cfg(not(any(target_os = "espidf", target_os = "horizon")))]
++        const NOFOLLOW = bitcast!(c::O_NOFOLLOW);
++
++        /// `O_NONBLOCK`
++        const NONBLOCK = bitcast!(c::O_NONBLOCK);
++
++        /// `O_RDONLY`
++        const RDONLY = bitcast!(c::O_RDONLY);
++
++        /// `O_WRONLY`
++        const WRONLY = bitcast!(c::O_WRONLY);
++
++        /// `O_RDWR`
++        ///
++        /// This is not equal to `RDONLY | WRONLY`. It's a distinct flag.
++        const RDWR = bitcast!(c::O_RDWR);
++
++        /// `O_NOCTTY`
++        #[cfg(not(any(target_os = "espidf", target_os = "horizon", target_os = "l4re", target_os = "redox", target_os = "vita")))]
++        const NOCTTY = bitcast!(c::O_NOCTTY);
++
++        /// `O_RSYNC`
++        #[cfg(any(
++            linux_kernel,
++            netbsdlike,
++            solarish,
++            target_os = "emscripten",
++            target_os = "wasi",
++        ))]
++        const RSYNC = bitcast!(c::O_RSYNC);
++
++        /// `O_SYNC`
++        #[cfg(not(any(target_os = "l4re", target_os = "redox")))]
++        const SYNC = bitcast!(c::O_SYNC);
++
++        /// `O_TRUNC`
++        const TRUNC = bitcast!(c::O_TRUNC);
++
++        /// `O_PATH`
++        #[cfg(any(
++            linux_kernel,
++            target_os = "emscripten",
++            target_os = "freebsd",
++            target_os = "fuchsia",
++            target_os = "redox",
++        ))]
++        const PATH = bitcast!(c::O_PATH);
++
++        /// `O_CLOEXEC`
++        const CLOEXEC = bitcast!(c::O_CLOEXEC);
++
++        /// `O_TMPFILE`
++        #[cfg(any(
++            linux_kernel,
++            target_os = "emscripten",
++            target_os = "fuchsia",
++        ))]
++        const TMPFILE = bitcast!(c::O_TMPFILE);
++
++        /// `O_NOATIME`
++        #[cfg(any(
++            linux_kernel,
++            target_os = "fuchsia",
++        ))]
++        const NOATIME = bitcast!(c::O_NOATIME);
++
++        /// `O_DIRECT`
++        #[cfg(any(
++            linux_kernel,
++            target_os = "emscripten",
++            target_os = "freebsd",
++            target_os = "fuchsia",
++            target_os = "netbsd",
++        ))]
++        const DIRECT = bitcast!(c::O_DIRECT);
++
++        /// `O_RESOLVE_BENEATH`
++        #[cfg(target_os = "freebsd")]
++        const RESOLVE_BENEATH = bitcast!(c::O_RESOLVE_BENEATH);
++
++        /// `O_EMPTY_PATH`
++        #[cfg(target_os = "freebsd")]
++        const EMPTY_PATH = bitcast!(c::O_EMPTY_PATH);
++
++        /// `O_SYMLINK`
++        #[cfg(any(apple, target_os = "redox"))]
++        const SYMLINK = bitcast!(c::O_SYMLINK);
++
++        /// `O_NOFOLLOW_ANY`
++        #[cfg(apple)]
++        const NOFOLLOW_ANY = bitcast!(c::O_NOFOLLOW_ANY);
++
++        /// `O_LARGEFILE`
++        ///
++        /// Rustix and/or libc will automatically set this flag when
++        /// appropriate in the [`rustix::fs::open`] family of functions, so
++        /// typical users do not need to care about it. It may be reported in
++        /// the return of `fcntl_getfl`, though.
++        #[cfg(any(linux_kernel, solarish))]
++        const LARGEFILE = bitcast!(c::O_LARGEFILE);
++
++        /// `O_ASYNC`, `FASYNC`
++        ///
++        /// This flag can't be used with the [`rustix::fs::open`] family of
++        /// functions, use [`rustix::fs::fcntl_setfl`] instead.
++        #[cfg(not(any(
++            target_os = "aix",
++            target_os = "cygwin",
++            target_os = "espidf",
++            target_os = "haiku",
++            target_os = "horizon",
++            target_os = "wasi",
++            target_os = "vita",
++            solarish
++        )))]
++        const ASYNC = bitcast!(c::O_ASYNC);
++
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++#[cfg(apple)]
++bitflags! {
++    /// `CLONE_*` constants for use with [`fclonefileat`].
++    ///
++    /// [`fclonefileat`]: crate::fs::fclonefileat
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct CloneFlags: u32 {
++        /// `CLONE_NOFOLLOW`
++        const NOFOLLOW = 1;
++
++        /// `CLONE_NOOWNERCOPY`
++        const NOOWNERCOPY = 2;
++
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++#[cfg(apple)]
++mod copyfile {
++    pub(super) const ACL: u32 = 1 << 0;
++    pub(super) const STAT: u32 = 1 << 1;
++    pub(super) const XATTR: u32 = 1 << 2;
++    pub(super) const DATA: u32 = 1 << 3;
++    pub(super) const SECURITY: u32 = STAT | ACL;
++    pub(super) const METADATA: u32 = SECURITY | XATTR;
++    pub(super) const ALL: u32 = METADATA | DATA;
++}
++
++#[cfg(apple)]
++bitflags! {
++    /// `COPYFILE_*` constants for use with [`fcopyfile`].
++    ///
++    /// [`fcopyfile`]: crate::fs::fcopyfile
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct CopyfileFlags: ffi::c_uint {
++        /// `COPYFILE_ACL`
++        const ACL = copyfile::ACL;
++
++        /// `COPYFILE_STAT`
++        const STAT = copyfile::STAT;
++
++        /// `COPYFILE_XATTR`
++        const XATTR = copyfile::XATTR;
++
++        /// `COPYFILE_DATA`
++        const DATA = copyfile::DATA;
++
++        /// `COPYFILE_SECURITY`
++        const SECURITY = copyfile::SECURITY;
++
++        /// `COPYFILE_METADATA`
++        const METADATA = copyfile::METADATA;
++
++        /// `COPYFILE_ALL`
++        const ALL = copyfile::ALL;
++
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++#[cfg(linux_kernel)]
++bitflags! {
++    /// `RESOLVE_*` constants for use with [`openat2`].
++    ///
++    /// [`openat2`]: crate::fs::openat2
++    #[repr(transparent)]
++    #[derive(Default, Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct ResolveFlags: u64 {
++        /// `RESOLVE_NO_XDEV`
++        const NO_XDEV = 0x01;
++
++        /// `RESOLVE_NO_MAGICLINKS`
++        const NO_MAGICLINKS = 0x02;
++
++        /// `RESOLVE_NO_SYMLINKS`
++        const NO_SYMLINKS = 0x04;
++
++        /// `RESOLVE_BENEATH`
++        const BENEATH = 0x08;
++
++        /// `RESOLVE_IN_ROOT`
++        const IN_ROOT = 0x10;
++
++        /// `RESOLVE_CACHED` (since Linux 5.12)
++        const CACHED = 0x20;
++
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++#[cfg(linux_kernel)]
++bitflags! {
++    /// `RENAME_*` constants for use with [`renameat_with`].
++    ///
++    /// [`renameat_with`]: crate::fs::renameat_with
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct RenameFlags: ffi::c_uint {
++        /// `RENAME_EXCHANGE`
++        const EXCHANGE = bitcast!(c::RENAME_EXCHANGE);
++
++        /// `RENAME_NOREPLACE`
++        const NOREPLACE = bitcast!(c::RENAME_NOREPLACE);
++
++        /// `RENAME_WHITEOUT`
++        const WHITEOUT = bitcast!(c::RENAME_WHITEOUT);
++
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++#[cfg(target_os = "redox")]
++bitflags! {
++    /// `RENAME_*` constants for use with [`renameat_with`].
++    ///
++    /// [`renameat_with`]: crate::fs::renameat_with
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct RenameFlags: ffi::c_uint {
++        /// `RENAME_NOREPLACE`
++        const NOREPLACE = bitcast!(c::RENAME_NOREPLACE);
++
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++#[cfg(apple)]
++bitflags! {
++    /// `RENAME_*` constants for use with [`renameat_with`].
++    ///
++    /// [`renameat_with`]: crate::fs::renameat_with
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct RenameFlags: ffi::c_uint {
++        /// `RENAME_SWAP`
++        const EXCHANGE = bitcast!(c::RENAME_SWAP);
++
++        /// `RENAME_EXCL`
++        const NOREPLACE = bitcast!(c::RENAME_EXCL);
++
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++/// `S_IF*` constants for use with [`mknodat`] and [`Stat`]'s `st_mode` field.
++///
++/// [`mknodat`]: crate::fs::mknodat
++/// [`Stat`]: crate::fs::Stat
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum FileType {
++    /// `S_IFREG`
++    RegularFile = c::S_IFREG as isize,
++
++    /// `S_IFDIR`
++    Directory = c::S_IFDIR as isize,
++
++    /// `S_IFLNK`
++    Symlink = c::S_IFLNK as isize,
++
++    /// `S_IFIFO`
++    #[cfg(not(target_os = "wasi"))] // TODO: Use WASI's `S_IFIFO`.
++    #[doc(alias = "IFO")]
++    Fifo = c::S_IFIFO as isize,
++
++    /// `S_IFSOCK`
++    #[cfg(not(target_os = "wasi"))] // TODO: Use WASI's `S_IFSOCK`.
++    Socket = c::S_IFSOCK as isize,
++
++    /// `S_IFCHR`
++    CharacterDevice = c::S_IFCHR as isize,
++
++    /// `S_IFBLK`
++    BlockDevice = c::S_IFBLK as isize,
++
++    /// An unknown filesystem object.
++    Unknown,
++}
++
++impl FileType {
++    /// Construct a `FileType` from the `S_IFMT` bits of the `st_mode` field of
++    /// a `Stat`.
++    #[inline]
++    pub const fn from_raw_mode(st_mode: RawMode) -> Self {
++        match (st_mode as c::mode_t) & c::S_IFMT {
++            c::S_IFREG => Self::RegularFile,
++            c::S_IFDIR => Self::Directory,
++            c::S_IFLNK => Self::Symlink,
++            #[cfg(not(target_os = "wasi"))] // TODO: Use WASI's `S_IFIFO`.
++            c::S_IFIFO => Self::Fifo,
++            #[cfg(not(target_os = "wasi"))] // TODO: Use WASI's `S_IFSOCK`.
++            c::S_IFSOCK => Self::Socket,
++            c::S_IFCHR => Self::CharacterDevice,
++            c::S_IFBLK => Self::BlockDevice,
++            _ => Self::Unknown,
++        }
++    }
++
++    /// Construct an `st_mode` value from a `FileType`.
++    #[inline]
++    pub const fn as_raw_mode(self) -> RawMode {
++        match self {
++            Self::RegularFile => c::S_IFREG as RawMode,
++            Self::Directory => c::S_IFDIR as RawMode,
++            Self::Symlink => c::S_IFLNK as RawMode,
++            #[cfg(not(target_os = "wasi"))] // TODO: Use WASI's `S_IFIFO`.
++            Self::Fifo => c::S_IFIFO as RawMode,
++            #[cfg(not(target_os = "wasi"))] // TODO: Use WASI's `S_IFSOCK`.
++            Self::Socket => c::S_IFSOCK as RawMode,
++            Self::CharacterDevice => c::S_IFCHR as RawMode,
++            Self::BlockDevice => c::S_IFBLK as RawMode,
++            Self::Unknown => c::S_IFMT as RawMode,
++        }
++    }
++
++    /// Construct a `FileType` from the `d_type` field of a `c::dirent`.
++    #[cfg(not(any(
++        solarish,
++        target_os = "aix",
++        target_os = "espidf",
++        target_os = "haiku",
++        target_os = "horizon",
++        target_os = "nto",
++        target_os = "redox",
++        target_os = "vita"
++    )))]
++    #[inline]
++    pub(crate) const fn from_dirent_d_type(d_type: u8) -> Self {
++        match d_type {
++            c::DT_REG => Self::RegularFile,
++            c::DT_DIR => Self::Directory,
++            c::DT_LNK => Self::Symlink,
++            #[cfg(not(target_os = "wasi"))] // TODO: Use WASI's `DT_SOCK`.
++            c::DT_SOCK => Self::Socket,
++            #[cfg(not(target_os = "wasi"))] // TODO: Use WASI's `DT_FIFO`.
++            c::DT_FIFO => Self::Fifo,
++            c::DT_CHR => Self::CharacterDevice,
++            c::DT_BLK => Self::BlockDevice,
++            // c::DT_UNKNOWN |
++            _ => Self::Unknown,
++        }
++    }
++}
++
++/// `POSIX_FADV_*` constants for use with [`fadvise`].
++///
++/// [`fadvise`]: crate::fs::fadvise
++#[cfg(not(any(
++    apple,
++    netbsdlike,
++    target_os = "dragonfly",
++    target_os = "espidf",
++    target_os = "horizon",
++    target_os = "haiku",
++    target_os = "redox",
++    target_os = "solaris",
++    target_os = "vita",
++)))]
++#[derive(Debug, Copy, Clone, Eq, PartialEq)]
++#[repr(u32)]
++pub enum Advice {
++    /// `POSIX_FADV_NORMAL`
++    Normal = c::POSIX_FADV_NORMAL as c::c_uint,
++
++    /// `POSIX_FADV_SEQUENTIAL`
++    Sequential = c::POSIX_FADV_SEQUENTIAL as c::c_uint,
++
++    /// `POSIX_FADV_RANDOM`
++    Random = c::POSIX_FADV_RANDOM as c::c_uint,
++
++    /// `POSIX_FADV_NOREUSE`
++    NoReuse = c::POSIX_FADV_NOREUSE as c::c_uint,
++
++    /// `POSIX_FADV_WILLNEED`
++    WillNeed = c::POSIX_FADV_WILLNEED as c::c_uint,
++
++    /// `POSIX_FADV_DONTNEED`
++    DontNeed = c::POSIX_FADV_DONTNEED as c::c_uint,
++}
++
++#[cfg(any(linux_kernel, target_os = "freebsd"))]
++bitflags! {
++    /// `MFD_*` constants for use with [`memfd_create`].
++    ///
++    /// [`memfd_create`]: crate::fs::memfd_create
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct MemfdFlags: ffi::c_uint {
++        /// `MFD_CLOEXEC`
++        const CLOEXEC = c::MFD_CLOEXEC;
++
++        /// `MFD_ALLOW_SEALING`
++        const ALLOW_SEALING = c::MFD_ALLOW_SEALING;
++
++        /// `MFD_HUGETLB` (since Linux 4.14)
++        const HUGETLB = c::MFD_HUGETLB;
++
++        /// `MFD_NOEXEC_SEAL` (since Linux 6.3)
++        #[cfg(linux_kernel)]
++        const NOEXEC_SEAL = c::MFD_NOEXEC_SEAL;
++        /// `MFD_EXEC` (since Linux 6.3)
++        #[cfg(linux_kernel)]
++        const EXEC = c::MFD_EXEC;
++
++        /// `MFD_HUGE_64KB`
++        const HUGE_64KB = c::MFD_HUGE_64KB;
++        /// `MFD_HUGE_512JB`
++        const HUGE_512KB = c::MFD_HUGE_512KB;
++        /// `MFD_HUGE_1MB`
++        const HUGE_1MB = c::MFD_HUGE_1MB;
++        /// `MFD_HUGE_2MB`
++        const HUGE_2MB = c::MFD_HUGE_2MB;
++        /// `MFD_HUGE_8MB`
++        const HUGE_8MB = c::MFD_HUGE_8MB;
++        /// `MFD_HUGE_16MB`
++        const HUGE_16MB = c::MFD_HUGE_16MB;
++        /// `MFD_HUGE_32MB`
++        const HUGE_32MB = c::MFD_HUGE_32MB;
++        /// `MFD_HUGE_256MB`
++        const HUGE_256MB = c::MFD_HUGE_256MB;
++        /// `MFD_HUGE_512MB`
++        const HUGE_512MB = c::MFD_HUGE_512MB;
++        /// `MFD_HUGE_1GB`
++        const HUGE_1GB = c::MFD_HUGE_1GB;
++        /// `MFD_HUGE_2GB`
++        const HUGE_2GB = c::MFD_HUGE_2GB;
++        /// `MFD_HUGE_16GB`
++        const HUGE_16GB = c::MFD_HUGE_16GB;
++
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++#[cfg(any(linux_kernel, target_os = "freebsd", target_os = "fuchsia"))]
++bitflags! {
++    /// `F_SEAL_*` constants for use with [`fcntl_add_seals`] and
++    /// [`fcntl_get_seals`].
++    ///
++    /// [`fcntl_add_seals`]: crate::fs::fcntl_add_seals
++    /// [`fcntl_get_seals`]: crate::fs::fcntl_get_seals
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct SealFlags: u32 {
++        /// `F_SEAL_SEAL`
++        const SEAL = bitcast!(c::F_SEAL_SEAL);
++        /// `F_SEAL_SHRINK`
++        const SHRINK = bitcast!(c::F_SEAL_SHRINK);
++        /// `F_SEAL_GROW`
++        const GROW = bitcast!(c::F_SEAL_GROW);
++        /// `F_SEAL_WRITE`
++        const WRITE = bitcast!(c::F_SEAL_WRITE);
++        /// `F_SEAL_FUTURE_WRITE` (since Linux 5.1)
++        #[cfg(linux_kernel)]
++        const FUTURE_WRITE = bitcast!(c::F_SEAL_FUTURE_WRITE);
++        /// `F_SEAL_EXEC` (since Linux 6.3)
++        #[cfg(linux_kernel)]
++        const EXEC = bitcast!(c::F_SEAL_EXEC);
++
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++#[cfg(not(any(
++    netbsdlike,
++    target_os = "espidf",
++    target_os = "horizon",
++    target_os = "nto",
++    target_os = "redox",
++    target_os = "vita"
++)))]
++bitflags! {
++    /// `FALLOC_FL_*` constants for use with [`fallocate`].
++    ///
++    /// [`fallocate`]: crate::fs::fallocate
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct FallocateFlags: u32 {
++        /// `FALLOC_FL_KEEP_SIZE`
++        #[cfg(not(any(
++            bsd,
++            solarish,
++            target_os = "aix",
++            target_os = "haiku",
++            target_os = "hurd",
++            target_os = "wasi",
++        )))]
++        const KEEP_SIZE = bitcast!(c::FALLOC_FL_KEEP_SIZE);
++        /// `FALLOC_FL_PUNCH_HOLE`
++        #[cfg(not(any(
++            bsd,
++            solarish,
++            target_os = "aix",
++            target_os = "haiku",
++            target_os = "hurd",
++            target_os = "wasi",
++        )))]
++        const PUNCH_HOLE = bitcast!(c::FALLOC_FL_PUNCH_HOLE);
++        /// `FALLOC_FL_NO_HIDE_STALE`
++        #[cfg(not(any(
++            bsd,
++            solarish,
++            target_os = "aix",
++            target_os = "cygwin",
++            target_os = "emscripten",
++            target_os = "fuchsia",
++            target_os = "haiku",
++            target_os = "hurd",
++            target_os = "l4re",
++            target_os = "linux",
++            target_os = "wasi",
++        )))]
++        const NO_HIDE_STALE = bitcast!(c::FALLOC_FL_NO_HIDE_STALE);
++        /// `FALLOC_FL_COLLAPSE_RANGE`
++        #[cfg(not(any(
++            bsd,
++            solarish,
++            target_os = "aix",
++            target_os = "haiku",
++            target_os = "hurd",
++            target_os = "emscripten",
++            target_os = "wasi",
++        )))]
++        const COLLAPSE_RANGE = bitcast!(c::FALLOC_FL_COLLAPSE_RANGE);
++        /// `FALLOC_FL_ZERO_RANGE`
++        #[cfg(not(any(
++            bsd,
++            solarish,
++            target_os = "aix",
++            target_os = "haiku",
++            target_os = "hurd",
++            target_os = "emscripten",
++            target_os = "wasi",
++        )))]
++        const ZERO_RANGE = bitcast!(c::FALLOC_FL_ZERO_RANGE);
++        /// `FALLOC_FL_INSERT_RANGE`
++        #[cfg(not(any(
++            bsd,
++            solarish,
++            target_os = "aix",
++            target_os = "haiku",
++            target_os = "hurd",
++            target_os = "emscripten",
++            target_os = "wasi",
++        )))]
++        const INSERT_RANGE = bitcast!(c::FALLOC_FL_INSERT_RANGE);
++        /// `FALLOC_FL_UNSHARE_RANGE`
++        #[cfg(not(any(
++            bsd,
++            solarish,
++            target_os = "aix",
++            target_os = "haiku",
++            target_os = "hurd",
++            target_os = "emscripten",
++            target_os = "wasi",
++        )))]
++        const UNSHARE_RANGE = bitcast!(c::FALLOC_FL_UNSHARE_RANGE);
++
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++#[cfg(not(target_os = "wasi"))]
++bitflags! {
++    /// `ST_*` constants for use with [`StatVfs`].
++    #[repr(transparent)]
++    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
++    pub struct StatVfsMountFlags: u64 {
++        /// `ST_MANDLOCK`
++        #[cfg(any(linux_kernel, target_os = "emscripten", target_os = "fuchsia"))]
++        const MANDLOCK = c::ST_MANDLOCK as u64;
++
++        /// `ST_NOATIME`
++        #[cfg(any(linux_kernel, target_os = "emscripten", target_os = "fuchsia"))]
++        const NOATIME = c::ST_NOATIME as u64;
++
++        /// `ST_NODEV`
++        #[cfg(any(
++            linux_kernel,
++            target_os = "aix",
++            target_os = "emscripten",
++            target_os = "fuchsia"
++        ))]
++        const NODEV = c::ST_NODEV as u64;
++
++        /// `ST_NODIRATIME`
++        #[cfg(any(linux_kernel, target_os = "emscripten", target_os = "fuchsia"))]
++        const NODIRATIME = c::ST_NODIRATIME as u64;
++
++        /// `ST_NOEXEC`
++        #[cfg(any(linux_kernel, target_os = "emscripten", target_os = "fuchsia"))]
++        const NOEXEC = c::ST_NOEXEC as u64;
++
++        /// `ST_NOSUID`
++        #[cfg(not(any(target_os = "espidf", target_os = "haiku", target_os = "horizon", target_os = "redox", target_os = "vita")))]
++        const NOSUID = c::ST_NOSUID as u64;
++
++        /// `ST_RDONLY`
++        #[cfg(not(any(target_os = "espidf", target_os = "haiku", target_os = "horizon", target_os = "redox", target_os = "vita")))]
++        const RDONLY = c::ST_RDONLY as u64;
++
++        /// `ST_RELATIME`
++        #[cfg(any(target_os = "android", all(target_os = "linux", target_env = "gnu")))]
++        const RELATIME = c::ST_RELATIME as u64;
++
++        /// `ST_SYNCHRONOUS`
++        #[cfg(any(linux_kernel, target_os = "emscripten", target_os = "fuchsia"))]
++        const SYNCHRONOUS = c::ST_SYNCHRONOUS as u64;
++
++        /// <https://docs.rs/bitflags/*/bitflags/#externally-defined-flags>
++        const _ = !0;
++    }
++}
++
++/// `LOCK_*` constants for use with [`flock`] and [`fcntl_lock`].
++///
++/// [`flock`]: crate::fs::flock
++/// [`fcntl_lock`]: crate::fs::fcntl_lock
++// Solaris doesn't support `flock` and doesn't define `LOCK_SH` etc., but we
++// reuse this `FlockOperation` enum for `fcntl_lock`, so on Solaris we use
++// our own made-up integer values.
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "horizon",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++#[repr(u32)]
++pub enum FlockOperation {
++    /// `LOCK_SH`
++    #[cfg(not(target_os = "solaris"))]
++    LockShared = bitcast!(c::LOCK_SH),
++    /// `LOCK_SH`
++    #[cfg(target_os = "solaris")]
++    LockShared = bitcast!(1),
++    /// `LOCK_EX`
++    #[cfg(not(target_os = "solaris"))]
++    LockExclusive = bitcast!(c::LOCK_EX),
++    /// `LOCK_EX`
++    #[cfg(target_os = "solaris")]
++    LockExclusive = bitcast!(2),
++    /// `LOCK_UN`
++    #[cfg(not(target_os = "solaris"))]
++    Unlock = bitcast!(c::LOCK_UN),
++    /// `LOCK_UN`
++    #[cfg(target_os = "solaris")]
++    Unlock = bitcast!(8),
++    /// `LOCK_SH | LOCK_NB`
++    #[cfg(not(target_os = "solaris"))]
++    NonBlockingLockShared = bitcast!(c::LOCK_SH | c::LOCK_NB),
++    /// `LOCK_SH | LOCK_NB`
++    #[cfg(target_os = "solaris")]
++    NonBlockingLockShared = bitcast!(1 | 4),
++    /// `LOCK_EX | LOCK_NB`
++    #[cfg(not(target_os = "solaris"))]
++    NonBlockingLockExclusive = bitcast!(c::LOCK_EX | c::LOCK_NB),
++    /// `LOCK_EX | LOCK_NB`
++    #[cfg(target_os = "solaris")]
++    NonBlockingLockExclusive = bitcast!(2 | 4),
++    /// `LOCK_UN | LOCK_NB`
++    #[cfg(not(target_os = "solaris"))]
++    NonBlockingUnlock = bitcast!(c::LOCK_UN | c::LOCK_NB),
++    /// `LOCK_UN | LOCK_NB`
++    #[cfg(target_os = "solaris")]
++    NonBlockingUnlock = bitcast!(8 | 4),
++}
++
++/// `struct stat` for use with [`statat`] and [`fstat`].
++///
++/// [`statat`]: crate::fs::statat
++/// [`fstat`]: crate::fs::fstat
++#[cfg(not(any(linux_like, target_os = "hurd", target_os = "netbsd")))]
++pub type Stat = c::stat;
++
++/// `struct stat` for use with [`statat`] and [`fstat`].
++///
++/// [`statat`]: crate::fs::statat
++/// [`fstat`]: crate::fs::fstat
++#[cfg(any(
++    all(linux_kernel, target_pointer_width = "64"),
++    target_os = "hurd",
++    target_os = "emscripten",
++    target_os = "l4re",
++))]
++pub type Stat = c::stat64;
++
++/// `struct stat` for use with [`statat`] and [`fstat`].
++///
++/// [`statat`]: crate::fs::statat
++/// [`fstat`]: crate::fs::fstat
++// On 32-bit, Linux's `struct stat64` has a 32-bit `st_mtime` and friends, so
++// we use our own struct, populated from `statx` where possible, to avoid the
++// y2038 bug.
++#[cfg(all(linux_kernel, target_pointer_width = "32"))]
++#[derive(Debug, Copy, Clone)]
++#[allow(missing_docs)]
++pub struct Stat {
++    pub st_dev: u64,
++    pub st_mode: u32,
++    pub st_nlink: u64,
++    pub st_uid: u32,
++    pub st_gid: u32,
++    pub st_rdev: u64,
++    pub st_size: i64,
++    pub st_blksize: u32,
++    pub st_blocks: u64,
++    pub st_atime: i64,
++    pub st_atime_nsec: u32,
++    pub st_mtime: i64,
++    pub st_mtime_nsec: u32,
++    pub st_ctime: i64,
++    pub st_ctime_nsec: u32,
++    pub st_ino: u64,
++}
++
++/// `struct stat` for use with [`statat`] and [`fstat`].
++///
++/// [`statat`]: crate::fs::statat
++/// [`fstat`]: crate::fs::fstat
++// NetBSD's `st_mtime_nsec` is named `st_mtimensec` so we declare our own
++// `Stat` so that we can be consistent with other platforms.
++#[cfg(target_os = "netbsd")]
++#[derive(Debug, Copy, Clone)]
++#[allow(missing_docs)]
++#[repr(C)]
++pub struct Stat {
++    pub st_dev: c::dev_t,
++    pub st_mode: c::mode_t,
++    pub st_ino: c::ino_t,
++    pub st_nlink: c::nlink_t,
++    pub st_uid: c::uid_t,
++    pub st_gid: c::gid_t,
++    pub st_rdev: c::dev_t,
++    pub st_atime: c::time_t,
++    pub st_atime_nsec: c::c_long,
++    pub st_mtime: c::time_t,
++    pub st_mtime_nsec: c::c_long,
++    pub st_ctime: c::time_t,
++    pub st_ctime_nsec: c::c_long,
++    pub st_birthtime: c::time_t,
++    pub st_birthtime_nsec: c::c_long,
++    pub st_size: c::off_t,
++    pub st_blocks: c::blkcnt_t,
++    pub st_blksize: c::blksize_t,
++    pub st_flags: u32,
++    pub st_gen: u32,
++    pub st_spare: [u32; 2],
++}
++
++/// `struct statfs` for use with [`statfs`] and [`fstatfs`].
++///
++/// [`statfs`]: crate::fs::statfs
++/// [`fstatfs`]: crate::fs::fstatfs
++#[cfg(not(any(
++    linux_like,
++    solarish,
++    target_os = "espidf",
++    target_os = "haiku",
++    target_os = "horizon",
++    target_os = "netbsd",
++    target_os = "nto",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi",
++)))]
++#[allow(clippy::module_name_repetitions)]
++pub type StatFs = c::statfs;
++
++/// `struct statfs` for use with [`statfs`] and [`fstatfs`].
++///
++/// [`statfs`]: crate::fs::statfs
++/// [`fstatfs`]: crate::fs::fstatfs
++#[cfg(linux_like)]
++pub type StatFs = c::statfs64;
++
++/// `fsid_t` for use with [`StatFs`].
++#[cfg(not(any(
++    solarish,
++    target_os = "cygwin",
++    target_os = "espidf",
++    target_os = "haiku",
++    target_os = "horizon",
++    target_os = "nto",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi",
++)))]
++pub type Fsid = c::fsid_t;
++
++/// `struct statvfs` for use with [`statvfs`] and [`fstatvfs`].
++///
++/// [`statvfs`]: crate::fs::statvfs
++/// [`fstatvfs`]: crate::fs::fstatvfs
++#[cfg(not(target_os = "wasi"))]
++#[allow(missing_docs)]
++pub struct StatVfs {
++    pub f_bsize: u64,
++    pub f_frsize: u64,
++    pub f_blocks: u64,
++    pub f_bfree: u64,
++    pub f_bavail: u64,
++    pub f_files: u64,
++    pub f_ffree: u64,
++    pub f_favail: u64,
++    pub f_fsid: u64,
++    pub f_flag: StatVfsMountFlags,
++    pub f_namemax: u64,
++}
++
++/// `mode_t`
++#[cfg(not(all(target_os = "android", target_pointer_width = "32")))]
++pub type RawMode = c::mode_t;
++
++/// `mode_t`
++#[cfg(all(target_os = "android", target_pointer_width = "32"))]
++pub type RawMode = ffi::c_uint;
++
++/// `dev_t`
++#[cfg(not(all(target_os = "android", target_pointer_width = "32")))]
++pub type Dev = c::dev_t;
++
++/// `dev_t`
++#[cfg(all(target_os = "android", target_pointer_width = "32"))]
++pub type Dev = ffi::c_ulonglong;
++
++/// `__fsword_t`
++#[cfg(all(
++    target_os = "linux",
++    not(target_env = "musl"),
++    not(target_arch = "s390x"),
++))]
++pub type FsWord = c::__fsword_t;
++
++/// `__fsword_t`
++#[cfg(all(
++    any(target_os = "android", all(target_os = "linux", target_env = "musl")),
++    target_pointer_width = "32",
++))]
++pub type FsWord = u32;
++
++/// `__fsword_t`
++#[cfg(all(
++    any(target_os = "android", all(target_os = "linux", target_env = "musl")),
++    not(target_arch = "s390x"),
++    target_pointer_width = "64",
++))]
++pub type FsWord = u64;
++
++/// `__fsword_t`
++// s390x uses `u32` for `statfs` entries on glibc, even though `__fsword_t` is
++// `u64`.
++#[cfg(all(target_os = "linux", target_arch = "s390x", target_env = "gnu"))]
++pub type FsWord = u32;
++
++/// `__fsword_t`
++// s390x uses `u64` for `statfs` entries on musl.
++#[cfg(all(target_os = "linux", target_arch = "s390x", target_env = "musl"))]
++pub type FsWord = u64;
++
++/// `copyfile_state_t`—State for use with [`fcopyfile`].
++///
++/// [`fcopyfile`]: crate::fs::fcopyfile
++#[cfg(apple)]
++#[allow(non_camel_case_types)]
++#[repr(transparent)]
++#[derive(Copy, Clone)]
++pub struct copyfile_state_t(pub(crate) *mut c::c_void);
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/backend/libc/io/errno.rs b/src/backend/libc/io/errno.rs
+--- a/src/backend/libc/io/errno.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/backend/libc/io/errno.rs	2026-10-23 09:18:49.505745388 -0400
+@@ -49,6 +49,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -74,6 +76,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -90,6 +94,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -107,6 +113,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -124,6 +132,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -138,6 +148,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -152,6 +164,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -183,7 +197,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const CHRNG: Self = Self(c::ECHRNG);
+     /// `ECOMM`
+@@ -191,6 +206,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -214,6 +231,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "android",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -241,6 +260,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -275,6 +296,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "android",
+         target_os = "cygwin",
+         target_os = "espidf",
+@@ -327,6 +350,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -344,6 +369,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -361,6 +388,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -378,6 +407,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -399,7 +430,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const L2HLT: Self = Self(c::EL2HLT);
+     /// `EL2NSYNC`
+@@ -412,7 +444,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const L2NSYNC: Self = Self(c::EL2NSYNC);
+     /// `EL3HLT`
+@@ -425,7 +458,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const L3HLT: Self = Self(c::EL3HLT);
+     /// `EL3RST`
+@@ -438,7 +472,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const L3RST: Self = Self(c::EL3RST);
+     /// `ELIBACC`
+@@ -446,6 +481,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -460,6 +497,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -474,6 +513,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -487,6 +528,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -501,6 +544,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -520,7 +565,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const LNRNG: Self = Self(c::ELNRNG);
+     /// `ELOOP`
+@@ -531,6 +577,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -561,6 +609,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -590,6 +640,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -615,7 +667,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const NOCSI: Self = Self(c::ENOCSI);
+     /// `ENODATA`
+@@ -625,6 +678,7 @@
+         target_os = "haiku",
+         target_os = "openbsd",
+         target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const NODATA: Self = Self(c::ENODATA);
+     /// `ENODEV`
+@@ -642,6 +696,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -665,6 +721,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -689,6 +747,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -703,6 +763,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -726,6 +788,7 @@
+         target_os = "l4re",
+         target_os = "openbsd",
+         target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const NOSR: Self = Self(c::ENOSR);
+     /// `ENOSTR`
+@@ -736,6 +799,7 @@
+         target_os = "l4re",
+         target_os = "openbsd",
+         target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const NOSTR: Self = Self(c::ENOSTR);
+     /// `ENOSYS`
+@@ -748,7 +812,8 @@
+         target_os = "haiku",
+         target_os = "horizon",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const NOTBLK: Self = Self(c::ENOTBLK);
+     /// `ENOTCAPABLE`
+@@ -767,6 +832,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -784,7 +851,8 @@
+         netbsdlike,
+         windows,
+         target_os = "haiku",
+-        target_os = "l4re"
++        target_os = "l4re",
++        target_os = "zos",
+     )))]
+     pub const NOTRECOVERABLE: Self = Self(c::ENOTRECOVERABLE);
+     /// `ENOTSOCK`
+@@ -801,6 +869,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -824,7 +894,8 @@
+         netbsdlike,
+         windows,
+         target_os = "haiku",
+-        target_os = "l4re"
++        target_os = "l4re",
++        target_os = "zos",
+     )))]
+     pub const OWNERDEAD: Self = Self(c::EOWNERDEAD);
+     /// `EPERM`
+@@ -871,6 +942,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -887,7 +960,8 @@
+         target_os = "horizon",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const REMOTE: Self = Self(c::EREMOTE);
+     /// `EREMOTEIO`
+@@ -896,6 +970,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -919,6 +995,7 @@
+         target_os = "l4re",
+         target_os = "vita",
+         target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const RESTART: Self = Self(c::ERESTART);
+     /// `ERFKILL`
+@@ -927,6 +1004,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "android",
+         target_os = "cygwin",
+         target_os = "espidf",
+@@ -962,7 +1041,8 @@
+         target_os = "horizon",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const SOCKTNOSUPPORT: Self = Self(c::ESOCKTNOSUPPORT);
+     /// `ESPIPE`
+@@ -976,6 +1056,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -992,6 +1074,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -1028,6 +1112,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -1049,7 +1135,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const UNATCH: Self = Self(c::EUNATCH);
+     /// `EUSERS`
+@@ -1059,7 +1146,8 @@
+         target_os = "horizon",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const USERS: Self = Self(c::EUSERS);
+     /// `EWOULDBLOCK`
+@@ -1072,6 +1160,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/backend/libc/io/syscalls.rs b/src/backend/libc/io/syscalls.rs
+--- a/src/backend/libc/io/syscalls.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/backend/libc/io/syscalls.rs	2026-10-23 09:18:49.510821301 -0400
+@@ -7,6 +7,8 @@
+ use crate::fd::{AsFd as _, BorrowedFd, OwnedFd, RawFd};
+ #[cfg(not(any(
+     target_os = "aix",
++
++    target_os = "zos",
+     target_os = "espidf",
+     target_os = "horizon",
+     target_os = "nto",
+@@ -268,6 +270,8 @@
+ #[cfg(not(any(
+     apple,
+     target_os = "aix",
++
++    target_os = "zos",
+     target_os = "android",
+     target_os = "dragonfly",
+     target_os = "espidf",
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/backend/libc/io/syscalls.rs.orig b/src/backend/libc/io/syscalls.rs.orig
+--- a/src/backend/libc/io/syscalls.rs.orig	1969-12-31 19:00:00.000000000 -0500
++++ b/src/backend/libc/io/syscalls.rs.orig	2006-07-23 21:21:28.000000000 -0400
+@@ -0,0 +1,304 @@
++//! libc syscalls supporting `rustix::io`.
++
++use crate::backend::c;
++#[cfg(not(target_os = "wasi"))]
++use crate::backend::conv::ret_discarded_fd;
++use crate::backend::conv::{borrowed_fd, ret, ret_c_int, ret_owned_fd, ret_usize};
++use crate::fd::{AsFd as _, BorrowedFd, OwnedFd, RawFd};
++#[cfg(not(any(
++    target_os = "aix",
++    target_os = "espidf",
++    target_os = "horizon",
++    target_os = "nto",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++use crate::io::DupFlags;
++#[cfg(all(linux_kernel, not(target_os = "android")))]
++use crate::io::ReadWriteFlags;
++use crate::io::{self, FdFlags};
++use crate::ioctl::{IoctlOutput, Opcode};
++use core::cmp::min;
++#[cfg(not(any(target_os = "espidf", target_os = "horizon")))]
++use {
++    crate::backend::MAX_IOV,
++    crate::io::{IoSlice, IoSliceMut},
++};
++
++pub(crate) unsafe fn read(fd: BorrowedFd<'_>, buf: (*mut u8, usize)) -> io::Result<usize> {
++    ret_usize(c::read(
++        borrowed_fd(fd),
++        buf.0.cast(),
++        min(buf.1, READ_LIMIT),
++    ))
++}
++
++pub(crate) fn write(fd: BorrowedFd<'_>, buf: &[u8]) -> io::Result<usize> {
++    unsafe {
++        ret_usize(c::write(
++            borrowed_fd(fd),
++            buf.as_ptr().cast(),
++            min(buf.len(), READ_LIMIT),
++        ))
++    }
++}
++
++pub(crate) unsafe fn pread(
++    fd: BorrowedFd<'_>,
++    buf: (*mut u8, usize),
++    offset: u64,
++) -> io::Result<usize> {
++    let len = min(buf.1, READ_LIMIT);
++
++    // Silently cast; we'll get `EINVAL` if the value is negative.
++    let offset = offset as i64;
++
++    // ESP-IDF and Vita don't support 64-bit offsets, for example.
++    let offset = offset.try_into().map_err(|_| io::Errno::OVERFLOW)?;
++
++    ret_usize(c::pread(borrowed_fd(fd), buf.0.cast(), len, offset))
++}
++
++pub(crate) fn pwrite(fd: BorrowedFd<'_>, buf: &[u8], offset: u64) -> io::Result<usize> {
++    let len = min(buf.len(), READ_LIMIT);
++
++    // Silently cast; we'll get `EINVAL` if the value is negative.
++    let offset = offset as i64;
++
++    // ESP-IDF and Vita don't support 64-bit offsets, for example.
++    let offset = offset.try_into().map_err(|_| io::Errno::OVERFLOW)?;
++
++    unsafe { ret_usize(c::pwrite(borrowed_fd(fd), buf.as_ptr().cast(), len, offset)) }
++}
++
++#[cfg(not(any(target_os = "espidf", target_os = "horizon")))]
++pub(crate) fn readv(fd: BorrowedFd<'_>, bufs: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
++    unsafe {
++        ret_usize(c::readv(
++            borrowed_fd(fd),
++            bufs.as_ptr().cast::<c::iovec>(),
++            min(bufs.len(), MAX_IOV) as c::c_int,
++        ))
++    }
++}
++
++#[cfg(not(any(target_os = "espidf", target_os = "horizon")))]
++pub(crate) fn writev(fd: BorrowedFd<'_>, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
++    unsafe {
++        ret_usize(c::writev(
++            borrowed_fd(fd),
++            bufs.as_ptr().cast::<c::iovec>(),
++            min(bufs.len(), MAX_IOV) as c::c_int,
++        ))
++    }
++}
++
++#[cfg(not(any(
++    target_os = "cygwin",
++    target_os = "espidf",
++    target_os = "haiku",
++    target_os = "horizon",
++    target_os = "nto",
++    target_os = "redox",
++    target_os = "solaris",
++    target_os = "vita",
++)))]
++pub(crate) fn preadv(
++    fd: BorrowedFd<'_>,
++    bufs: &mut [IoSliceMut<'_>],
++    offset: u64,
++) -> io::Result<usize> {
++    // Silently cast; we'll get `EINVAL` if the value is negative.
++    let offset = offset as i64;
++
++    // ESP-IDF and Vita don't support 64-bit offsets, for example.
++    let offset = offset.try_into().map_err(|_| io::Errno::OVERFLOW)?;
++
++    unsafe {
++        ret_usize(c::preadv(
++            borrowed_fd(fd),
++            bufs.as_ptr().cast::<c::iovec>(),
++            min(bufs.len(), MAX_IOV) as c::c_int,
++            offset,
++        ))
++    }
++}
++
++#[cfg(not(any(
++    target_os = "cygwin",
++    target_os = "espidf",
++    target_os = "haiku",
++    target_os = "nto",
++    target_os = "horizon",
++    target_os = "redox",
++    target_os = "solaris",
++    target_os = "vita",
++)))]
++pub(crate) fn pwritev(fd: BorrowedFd<'_>, bufs: &[IoSlice<'_>], offset: u64) -> io::Result<usize> {
++    // Silently cast; we'll get `EINVAL` if the value is negative.
++    let offset = offset as i64;
++
++    // ESP-IDF and Vita don't support 64-bit offsets, for example.
++    let offset = offset.try_into().map_err(|_| io::Errno::OVERFLOW)?;
++
++    unsafe {
++        ret_usize(c::pwritev(
++            borrowed_fd(fd),
++            bufs.as_ptr().cast::<c::iovec>(),
++            min(bufs.len(), MAX_IOV) as c::c_int,
++            offset,
++        ))
++    }
++}
++
++#[cfg(all(linux_kernel, not(target_os = "android")))]
++pub(crate) fn preadv2(
++    fd: BorrowedFd<'_>,
++    bufs: &mut [IoSliceMut<'_>],
++    offset: u64,
++    flags: ReadWriteFlags,
++) -> io::Result<usize> {
++    // Silently cast; we'll get `EINVAL` if the value is negative.
++    let offset = offset as i64;
++    unsafe {
++        ret_usize(c::preadv2(
++            borrowed_fd(fd),
++            bufs.as_ptr().cast::<c::iovec>(),
++            min(bufs.len(), MAX_IOV) as c::c_int,
++            offset,
++            bitflags_bits!(flags),
++        ))
++    }
++}
++
++#[cfg(all(linux_kernel, not(target_os = "android")))]
++pub(crate) fn pwritev2(
++    fd: BorrowedFd<'_>,
++    bufs: &[IoSlice<'_>],
++    offset: u64,
++    flags: ReadWriteFlags,
++) -> io::Result<usize> {
++    // Silently cast; we'll get `EINVAL` if the value is negative.
++    let offset = offset as i64;
++    unsafe {
++        ret_usize(c::pwritev2(
++            borrowed_fd(fd),
++            bufs.as_ptr().cast::<c::iovec>(),
++            min(bufs.len(), MAX_IOV) as c::c_int,
++            offset,
++            bitflags_bits!(flags),
++        ))
++    }
++}
++
++// These functions are derived from Rust's library/std/src/sys/unix/fd.rs at
++// revision 326ef470a8b379a180d6dc4bbef08990698a737a.
++
++// The maximum read limit on most POSIX-like systems is `SSIZE_MAX`, with the
++// manual page quoting that if the count of bytes to read is greater than
++// `SSIZE_MAX` the result is “unspecified”.
++//
++// On macOS, however, apparently the 64-bit libc is either buggy or
++// intentionally showing odd behavior by rejecting any read with a size larger
++// than or equal to `INT_MAX`. To handle both of these the read size is capped
++// on both platforms.
++#[cfg(target_os = "macos")]
++const READ_LIMIT: usize = c::c_int::MAX as usize - 1;
++#[cfg(not(target_os = "macos"))]
++const READ_LIMIT: usize = c::ssize_t::MAX as usize;
++
++pub(crate) unsafe fn close(raw_fd: RawFd) {
++    let _ = c::close(raw_fd as c::c_int);
++}
++
++#[cfg(feature = "try_close")]
++pub(crate) unsafe fn try_close(raw_fd: RawFd) -> io::Result<()> {
++    ret(c::close(raw_fd as c::c_int))
++}
++
++#[inline]
++pub(crate) unsafe fn ioctl(
++    fd: BorrowedFd<'_>,
++    request: Opcode,
++    arg: *mut c::c_void,
++) -> io::Result<IoctlOutput> {
++    ret_c_int(c::ioctl(borrowed_fd(fd), request, arg))
++}
++
++#[inline]
++pub(crate) unsafe fn ioctl_readonly(
++    fd: BorrowedFd<'_>,
++    request: Opcode,
++    arg: *mut c::c_void,
++) -> io::Result<IoctlOutput> {
++    ioctl(fd, request, arg)
++}
++
++pub(crate) fn fcntl_getfd(fd: BorrowedFd<'_>) -> io::Result<FdFlags> {
++    let flags = unsafe { ret_c_int(c::fcntl(borrowed_fd(fd), c::F_GETFD))? };
++    Ok(FdFlags::from_bits_retain(bitcast!(flags)))
++}
++
++pub(crate) fn fcntl_setfd(fd: BorrowedFd<'_>, flags: FdFlags) -> io::Result<()> {
++    unsafe { ret(c::fcntl(borrowed_fd(fd), c::F_SETFD, flags.bits())) }
++}
++
++#[cfg(not(any(target_os = "espidf", target_os = "wasi")))]
++pub(crate) fn fcntl_dupfd_cloexec(fd: BorrowedFd<'_>, min: RawFd) -> io::Result<OwnedFd> {
++    unsafe { ret_owned_fd(c::fcntl(borrowed_fd(fd), c::F_DUPFD_CLOEXEC, min)) }
++}
++
++#[cfg(target_os = "espidf")]
++pub(crate) fn fcntl_dupfd(fd: BorrowedFd<'_>, min: RawFd) -> io::Result<OwnedFd> {
++    unsafe { ret_owned_fd(c::fcntl(borrowed_fd(fd), c::F_DUPFD, min)) }
++}
++
++#[cfg(not(target_os = "wasi"))]
++pub(crate) fn dup(fd: BorrowedFd<'_>) -> io::Result<OwnedFd> {
++    unsafe { ret_owned_fd(c::dup(borrowed_fd(fd))) }
++}
++
++#[allow(clippy::needless_pass_by_ref_mut)]
++#[cfg(not(target_os = "wasi"))]
++pub(crate) fn dup2(fd: BorrowedFd<'_>, new: &mut OwnedFd) -> io::Result<()> {
++    unsafe { ret_discarded_fd(c::dup2(borrowed_fd(fd), borrowed_fd(new.as_fd()))) }
++}
++
++#[allow(clippy::needless_pass_by_ref_mut)]
++#[cfg(not(any(
++    apple,
++    target_os = "aix",
++    target_os = "android",
++    target_os = "dragonfly",
++    target_os = "espidf",
++    target_os = "haiku",
++    target_os = "horizon",
++    target_os = "nto",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi",
++)))]
++pub(crate) fn dup3(fd: BorrowedFd<'_>, new: &mut OwnedFd, flags: DupFlags) -> io::Result<()> {
++    unsafe {
++        ret_discarded_fd(c::dup3(
++            borrowed_fd(fd),
++            borrowed_fd(new.as_fd()),
++            bitflags_bits!(flags),
++        ))
++    }
++}
++
++#[cfg(any(
++    apple,
++    target_os = "android",
++    target_os = "dragonfly",
++    target_os = "haiku",
++    target_os = "redox",
++))]
++pub(crate) fn dup3(fd: BorrowedFd<'_>, new: &mut OwnedFd, _flags: DupFlags) -> io::Result<()> {
++    // Android 5.0 has `dup3`, but libc doesn't have bindings. Emulate it
++    // using `dup2`. We don't need to worry about the difference between
++    // `dup2` and `dup3` when the file descriptors are equal because we
++    // have an `&mut OwnedFd` which means `fd` doesn't alias it.
++    dup2(fd, new)
++}
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/backend/libc/process/syscalls.rs b/src/backend/libc/process/syscalls.rs
+--- a/src/backend/libc/process/syscalls.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/backend/libc/process/syscalls.rs	2026-10-23 09:18:49.525745530 -0400
+@@ -425,7 +425,7 @@
+     let mut status = MaybeUninit::<c::siginfo_t>::zeroed();
+     unsafe {
+         ret(c::waitid(
+-            c::P_ALL,
++            c::P_ALL as _,
+             0,
+             status.as_mut_ptr(),
+             options.bits() as _,
+@@ -451,7 +451,7 @@
+     let mut status = MaybeUninit::<c::siginfo_t>::zeroed();
+     unsafe {
+         ret(c::waitid(
+-            c::P_PID,
++            c::P_PID as _,
+             Pid::as_raw(Some(pid)) as _,
+             status.as_mut_ptr(),
+             options.bits() as _,
+@@ -477,7 +477,7 @@
+     let mut status = MaybeUninit::<c::siginfo_t>::zeroed();
+     unsafe {
+         ret(c::waitid(
+-            c::P_PGID,
++            c::P_PGID as _,
+             Pid::as_raw(pgid) as _,
+             status.as_mut_ptr(),
+             options.bits() as _,
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/backend/libc/process/syscalls.rs.orig b/src/backend/libc/process/syscalls.rs.orig
+--- a/src/backend/libc/process/syscalls.rs.orig	1969-12-31 19:00:00.000000000 -0500
++++ b/src/backend/libc/process/syscalls.rs.orig	2006-07-23 21:21:28.000000000 -0400
+@@ -0,0 +1,706 @@
++//! libc syscalls supporting `rustix::process`.
++
++use crate::backend::c;
++#[cfg(not(any(target_os = "fuchsia", target_os = "wasi")))]
++use crate::backend::conv::borrowed_fd;
++#[cfg(any(target_os = "linux", feature = "fs"))]
++use crate::backend::conv::c_str;
++#[cfg(all(feature = "alloc", feature = "fs", not(target_os = "wasi")))]
++use crate::backend::conv::ret_discarded_char_ptr;
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++use crate::backend::conv::ret_infallible;
++#[cfg(not(target_os = "wasi"))]
++use crate::backend::conv::ret_pid_t;
++#[cfg(all(feature = "alloc", not(target_os = "wasi")))]
++use crate::backend::conv::ret_usize;
++use crate::backend::conv::{ret, ret_c_int};
++#[cfg(not(any(target_os = "fuchsia", target_os = "wasi")))]
++use crate::fd::BorrowedFd;
++#[cfg(target_os = "linux")]
++use crate::fd::{AsRawFd as _, OwnedFd, RawFd};
++#[cfg(any(target_os = "linux", feature = "fs"))]
++use crate::ffi::CStr;
++#[cfg(feature = "fs")]
++use crate::fs::Mode;
++use crate::io;
++#[cfg(not(any(
++    target_os = "emscripten",
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++use crate::process::Flock;
++#[cfg(all(feature = "alloc", not(target_os = "wasi")))]
++use crate::process::Gid;
++#[cfg(not(target_os = "wasi"))]
++use crate::process::Pid;
++#[cfg(not(any(target_os = "espidf", target_os = "wasi")))]
++use crate::process::Signal;
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++use crate::process::Uid;
++#[cfg(not(any(target_os = "espidf", target_os = "vita", target_os = "wasi")))]
++use crate::process::{RawPid, WaitOptions, WaitStatus};
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++use crate::process::{Resource, Rlimit};
++#[cfg(not(any(
++    target_os = "cygwin",
++    target_os = "espidf",
++    target_os = "horizon",
++    target_os = "openbsd",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi",
++)))]
++use crate::process::{WaitId, WaitIdOptions, WaitIdStatus};
++use core::mem::MaybeUninit;
++#[cfg(target_os = "linux")]
++use {
++    super::super::conv::ret_owned_fd, crate::process::PidfdFlags, crate::process::PidfdGetfdFlags,
++};
++
++#[cfg(feature = "fs")]
++#[cfg(not(target_os = "wasi"))]
++pub(crate) fn chdir(path: &CStr) -> io::Result<()> {
++    unsafe { ret(c::chdir(c_str(path))) }
++}
++
++#[cfg(not(any(target_os = "fuchsia", target_os = "wasi")))]
++pub(crate) fn fchdir(dirfd: BorrowedFd<'_>) -> io::Result<()> {
++    unsafe { ret(c::fchdir(borrowed_fd(dirfd))) }
++}
++
++#[cfg(feature = "fs")]
++#[cfg(not(any(target_os = "fuchsia", target_os = "wasi")))]
++pub(crate) fn chroot(path: &CStr) -> io::Result<()> {
++    unsafe { ret(c::chroot(c_str(path))) }
++}
++
++#[cfg(all(feature = "alloc", feature = "fs"))]
++#[cfg(not(target_os = "wasi"))]
++pub(crate) fn getcwd(buf: &mut [MaybeUninit<u8>]) -> io::Result<()> {
++    unsafe { ret_discarded_char_ptr(c::getcwd(buf.as_mut_ptr().cast(), buf.len())) }
++}
++
++#[cfg(not(target_os = "wasi"))]
++#[inline]
++#[must_use]
++pub(crate) fn getppid() -> Option<Pid> {
++    unsafe {
++        let pid: i32 = c::getppid();
++        Pid::from_raw(pid)
++    }
++}
++
++#[cfg(not(target_os = "wasi"))]
++#[inline]
++pub(crate) fn getpgid(pid: Option<Pid>) -> io::Result<Pid> {
++    unsafe {
++        let pgid = ret_pid_t(c::getpgid(Pid::as_raw(pid) as _))?;
++        Ok(Pid::from_raw_unchecked(pgid))
++    }
++}
++
++#[cfg(not(target_os = "wasi"))]
++#[inline]
++pub(crate) fn setpgid(pid: Option<Pid>, pgid: Option<Pid>) -> io::Result<()> {
++    unsafe { ret(c::setpgid(Pid::as_raw(pid) as _, Pid::as_raw(pgid) as _)) }
++}
++
++#[cfg(not(target_os = "wasi"))]
++#[inline]
++#[must_use]
++pub(crate) fn getpgrp() -> Pid {
++    unsafe {
++        let pgid = c::getpgrp();
++        Pid::from_raw_unchecked(pgid)
++    }
++}
++
++#[cfg(not(target_os = "wasi"))]
++#[cfg(feature = "fs")]
++#[inline]
++pub(crate) fn umask(mask: Mode) -> Mode {
++    unsafe { Mode::from_bits_retain(c::umask(mask.bits() as c::mode_t).into()) }
++}
++
++#[cfg(not(any(target_os = "fuchsia", target_os = "vita", target_os = "wasi")))]
++#[inline]
++pub(crate) fn nice(inc: i32) -> io::Result<i32> {
++    libc_errno::set_errno(libc_errno::Errno(0));
++    let r = unsafe { c::nice(inc) };
++    if libc_errno::errno().0 != 0 {
++        ret_c_int(r)
++    } else {
++        Ok(r)
++    }
++}
++
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++#[inline]
++pub(crate) fn getpriority_user(uid: Uid) -> io::Result<i32> {
++    libc_errno::set_errno(libc_errno::Errno(0));
++    let r = unsafe { c::getpriority(c::PRIO_USER, uid.as_raw() as _) };
++    if libc_errno::errno().0 != 0 {
++        ret_c_int(r)
++    } else {
++        Ok(r)
++    }
++}
++
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++#[inline]
++pub(crate) fn getpriority_pgrp(pgid: Option<Pid>) -> io::Result<i32> {
++    libc_errno::set_errno(libc_errno::Errno(0));
++    let r = unsafe { c::getpriority(c::PRIO_PGRP, Pid::as_raw(pgid) as _) };
++    if libc_errno::errno().0 != 0 {
++        ret_c_int(r)
++    } else {
++        Ok(r)
++    }
++}
++
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++#[inline]
++pub(crate) fn getpriority_process(pid: Option<Pid>) -> io::Result<i32> {
++    libc_errno::set_errno(libc_errno::Errno(0));
++    let r = unsafe { c::getpriority(c::PRIO_PROCESS, Pid::as_raw(pid) as _) };
++    if libc_errno::errno().0 != 0 {
++        ret_c_int(r)
++    } else {
++        Ok(r)
++    }
++}
++
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++#[inline]
++pub(crate) fn setpriority_user(uid: Uid, priority: i32) -> io::Result<()> {
++    unsafe { ret(c::setpriority(c::PRIO_USER, uid.as_raw() as _, priority)) }
++}
++
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++#[inline]
++pub(crate) fn setpriority_pgrp(pgid: Option<Pid>, priority: i32) -> io::Result<()> {
++    unsafe {
++        ret(c::setpriority(
++            c::PRIO_PGRP,
++            Pid::as_raw(pgid) as _,
++            priority,
++        ))
++    }
++}
++
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++#[inline]
++pub(crate) fn setpriority_process(pid: Option<Pid>, priority: i32) -> io::Result<()> {
++    unsafe {
++        ret(c::setpriority(
++            c::PRIO_PROCESS,
++            Pid::as_raw(pid) as _,
++            priority,
++        ))
++    }
++}
++
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++#[inline]
++pub(crate) fn getrlimit(limit: Resource) -> Rlimit {
++    let mut result = MaybeUninit::<c::rlimit>::uninit();
++    unsafe {
++        ret_infallible(c::getrlimit(limit as _, result.as_mut_ptr()));
++        rlimit_from_libc(result.assume_init())
++    }
++}
++
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++#[inline]
++pub(crate) fn setrlimit(limit: Resource, new: Rlimit) -> io::Result<()> {
++    let lim = rlimit_to_libc(new)?;
++    unsafe { ret(c::setrlimit(limit as _, &lim)) }
++}
++
++#[cfg(linux_kernel)]
++#[inline]
++pub(crate) fn prlimit(pid: Option<Pid>, limit: Resource, new: Rlimit) -> io::Result<Rlimit> {
++    let lim = rlimit_to_libc(new)?;
++    let mut result = MaybeUninit::<c::rlimit>::uninit();
++    unsafe {
++        ret(c::prlimit(
++            Pid::as_raw(pid),
++            limit as _,
++            &lim,
++            result.as_mut_ptr(),
++        ))?;
++        Ok(rlimit_from_libc(result.assume_init()))
++    }
++}
++
++/// Convert a C `c::rlimit` to a Rust `Rlimit`.
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++fn rlimit_from_libc(lim: c::rlimit) -> Rlimit {
++    let current = if lim.rlim_cur == c::RLIM_INFINITY {
++        None
++    } else {
++        Some(lim.rlim_cur.try_into().unwrap())
++    };
++    let maximum = if lim.rlim_max == c::RLIM_INFINITY {
++        None
++    } else {
++        Some(lim.rlim_max.try_into().unwrap())
++    };
++    Rlimit { current, maximum }
++}
++
++/// Convert a Rust [`Rlimit`] to a C `c::rlimit`.
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++fn rlimit_to_libc(lim: Rlimit) -> io::Result<c::rlimit> {
++    let Rlimit { current, maximum } = lim;
++    let rlim_cur = match current {
++        Some(r) => r.try_into().map_err(|_e| io::Errno::INVAL)?,
++        None => c::RLIM_INFINITY as _,
++    };
++    let rlim_max = match maximum {
++        Some(r) => r.try_into().map_err(|_e| io::Errno::INVAL)?,
++        None => c::RLIM_INFINITY as _,
++    };
++    Ok(c::rlimit { rlim_cur, rlim_max })
++}
++
++#[cfg(not(any(target_os = "espidf", target_os = "vita", target_os = "wasi")))]
++#[inline]
++pub(crate) fn wait(waitopts: WaitOptions) -> io::Result<Option<(Pid, WaitStatus)>> {
++    _waitpid(!0, waitopts)
++}
++
++#[cfg(not(any(target_os = "espidf", target_os = "vita", target_os = "wasi")))]
++#[inline]
++pub(crate) fn waitpid(
++    pid: Option<Pid>,
++    waitopts: WaitOptions,
++) -> io::Result<Option<(Pid, WaitStatus)>> {
++    _waitpid(Pid::as_raw(pid), waitopts)
++}
++
++#[cfg(not(any(target_os = "espidf", target_os = "vita", target_os = "wasi")))]
++#[inline]
++pub(crate) fn waitpgid(pgid: Pid, waitopts: WaitOptions) -> io::Result<Option<(Pid, WaitStatus)>> {
++    _waitpid(-pgid.as_raw_nonzero().get(), waitopts)
++}
++
++#[cfg(not(any(target_os = "espidf", target_os = "vita", target_os = "wasi")))]
++#[inline]
++pub(crate) fn _waitpid(
++    pid: RawPid,
++    waitopts: WaitOptions,
++) -> io::Result<Option<(Pid, WaitStatus)>> {
++    unsafe {
++        let mut status: c::c_int = 0;
++        let pid = ret_c_int(c::waitpid(pid as _, &mut status, waitopts.bits() as _))?;
++        Ok(Pid::from_raw(pid).map(|pid| (pid, WaitStatus::new(status as _))))
++    }
++}
++
++#[cfg(not(any(
++    target_os = "cygwin",
++    target_os = "espidf",
++    target_os = "horizon",
++    target_os = "openbsd",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi",
++)))]
++#[inline]
++pub(crate) fn waitid(id: WaitId<'_>, options: WaitIdOptions) -> io::Result<Option<WaitIdStatus>> {
++    // Get the id to wait on.
++    match id {
++        WaitId::All => _waitid_all(options),
++        WaitId::Pid(pid) => _waitid_pid(pid, options),
++        WaitId::Pgid(pgid) => _waitid_pgid(pgid, options),
++        #[cfg(target_os = "linux")]
++        WaitId::PidFd(fd) => _waitid_pidfd(fd, options),
++        #[cfg(not(target_os = "linux"))]
++        WaitId::__EatLifetime(_) => unreachable!(),
++    }
++}
++
++#[cfg(not(any(
++    target_os = "cygwin",
++    target_os = "espidf",
++    target_os = "horizon",
++    target_os = "openbsd",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi",
++)))]
++#[inline]
++fn _waitid_all(options: WaitIdOptions) -> io::Result<Option<WaitIdStatus>> {
++    // `waitid` can return successfully without initializing the struct (no
++    // children found when using `WNOHANG`)
++    let mut status = MaybeUninit::<c::siginfo_t>::zeroed();
++    unsafe {
++        ret(c::waitid(
++            c::P_ALL,
++            0,
++            status.as_mut_ptr(),
++            options.bits() as _,
++        ))?
++    };
++
++    Ok(unsafe { cvt_waitid_status(status) })
++}
++
++#[cfg(not(any(
++    target_os = "cygwin",
++    target_os = "espidf",
++    target_os = "horizon",
++    target_os = "openbsd",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi",
++)))]
++#[inline]
++fn _waitid_pid(pid: Pid, options: WaitIdOptions) -> io::Result<Option<WaitIdStatus>> {
++    // `waitid` can return successfully without initializing the struct (no
++    // children found when using `WNOHANG`)
++    let mut status = MaybeUninit::<c::siginfo_t>::zeroed();
++    unsafe {
++        ret(c::waitid(
++            c::P_PID,
++            Pid::as_raw(Some(pid)) as _,
++            status.as_mut_ptr(),
++            options.bits() as _,
++        ))?
++    };
++
++    Ok(unsafe { cvt_waitid_status(status) })
++}
++
++#[cfg(not(any(
++    target_os = "cygwin",
++    target_os = "espidf",
++    target_os = "horizon",
++    target_os = "openbsd",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi",
++)))]
++#[inline]
++fn _waitid_pgid(pgid: Option<Pid>, options: WaitIdOptions) -> io::Result<Option<WaitIdStatus>> {
++    // `waitid` can return successfully without initializing the struct (no
++    // children found when using `WNOHANG`)
++    let mut status = MaybeUninit::<c::siginfo_t>::zeroed();
++    unsafe {
++        ret(c::waitid(
++            c::P_PGID,
++            Pid::as_raw(pgid) as _,
++            status.as_mut_ptr(),
++            options.bits() as _,
++        ))?
++    };
++
++    Ok(unsafe { cvt_waitid_status(status) })
++}
++
++#[cfg(target_os = "linux")]
++#[inline]
++fn _waitid_pidfd(fd: BorrowedFd<'_>, options: WaitIdOptions) -> io::Result<Option<WaitIdStatus>> {
++    // `waitid` can return successfully without initializing the struct (no
++    // children found when using `WNOHANG`)
++    let mut status = MaybeUninit::<c::siginfo_t>::zeroed();
++    unsafe {
++        ret(c::waitid(
++            c::P_PIDFD,
++            fd.as_raw_fd() as _,
++            status.as_mut_ptr(),
++            options.bits() as _,
++        ))?
++    };
++
++    Ok(unsafe { cvt_waitid_status(status) })
++}
++
++/// Convert a `siginfo_t` to a `WaitIdStatus`.
++///
++/// # Safety
++///
++/// The caller must ensure that `status` is initialized and that `waitid`
++/// returned successfully.
++#[cfg(not(any(
++    target_os = "cygwin",
++    target_os = "espidf",
++    target_os = "horizon",
++    target_os = "openbsd",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi",
++)))]
++#[inline]
++unsafe fn cvt_waitid_status(status: MaybeUninit<c::siginfo_t>) -> Option<WaitIdStatus> {
++    let status = status.assume_init();
++    // `si_pid` is supposedly the better way to check that the struct has been
++    // filled, e.g. the Linux manual page says about the `WNOHANG` case “zero
++    // out the si_pid field before the call and check for a nonzero value”.
++    // But e.g. NetBSD/OpenBSD don't have it exposed in the libc crate for now,
++    // and some platforms don't have it at all. For simplicity, always check
++    // `si_signo`. We have zero-initialized the whole struct, and all kernels
++    // should set `SIGCHLD` here.
++    if status.si_signo == 0 {
++        None
++    } else {
++        Some(WaitIdStatus(status))
++    }
++}
++
++#[cfg(not(any(target_os = "redox", target_os = "wasi")))]
++#[inline]
++pub(crate) fn getsid(pid: Option<Pid>) -> io::Result<Pid> {
++    unsafe {
++        let pid = ret_pid_t(c::getsid(Pid::as_raw(pid) as _))?;
++        Ok(Pid::from_raw_unchecked(pid))
++    }
++}
++
++#[cfg(not(target_os = "wasi"))]
++#[inline]
++pub(crate) fn setsid() -> io::Result<Pid> {
++    unsafe {
++        let pid = ret_c_int(c::setsid())?;
++        Ok(Pid::from_raw_unchecked(pid))
++    }
++}
++
++#[cfg(not(any(target_os = "espidf", target_os = "wasi")))]
++#[inline]
++pub(crate) fn kill_process(pid: Pid, sig: Signal) -> io::Result<()> {
++    unsafe { ret(c::kill(pid.as_raw_nonzero().get(), sig.as_raw())) }
++}
++
++#[cfg(not(any(target_os = "espidf", target_os = "wasi")))]
++#[inline]
++pub(crate) fn kill_process_group(pid: Pid, sig: Signal) -> io::Result<()> {
++    unsafe {
++        ret(c::kill(
++            pid.as_raw_nonzero().get().wrapping_neg(),
++            sig.as_raw(),
++        ))
++    }
++}
++
++#[cfg(not(any(target_os = "espidf", target_os = "wasi")))]
++#[inline]
++pub(crate) fn kill_current_process_group(sig: Signal) -> io::Result<()> {
++    unsafe { ret(c::kill(0, sig.as_raw())) }
++}
++
++#[cfg(not(any(target_os = "espidf", target_os = "wasi")))]
++pub(crate) fn test_kill_process(pid: Pid) -> io::Result<()> {
++    unsafe { ret(c::kill(pid.as_raw_nonzero().get(), 0)) }
++}
++
++#[cfg(not(any(target_os = "espidf", target_os = "wasi")))]
++#[inline]
++pub(crate) fn test_kill_process_group(pid: Pid) -> io::Result<()> {
++    unsafe { ret(c::kill(pid.as_raw_nonzero().get().wrapping_neg(), 0)) }
++}
++
++#[cfg(not(any(target_os = "espidf", target_os = "wasi")))]
++#[inline]
++pub(crate) fn test_kill_current_process_group() -> io::Result<()> {
++    unsafe { ret(c::kill(0, 0)) }
++}
++
++#[cfg(freebsdlike)]
++#[inline]
++pub(crate) unsafe fn procctl(
++    idtype: c::idtype_t,
++    id: c::id_t,
++    option: c::c_int,
++    data: *mut c::c_void,
++) -> io::Result<()> {
++    ret(c::procctl(idtype, id, option, data))
++}
++
++#[cfg(target_os = "linux")]
++pub(crate) fn pidfd_open(pid: Pid, flags: PidfdFlags) -> io::Result<OwnedFd> {
++    syscall! {
++        fn pidfd_open(
++            pid: c::pid_t,
++            flags: c::c_uint
++        ) via SYS_pidfd_open -> c::c_int
++    }
++    unsafe {
++        ret_owned_fd(pidfd_open(
++            pid.as_raw_nonzero().get(),
++            bitflags_bits!(flags),
++        ))
++    }
++}
++
++#[cfg(target_os = "linux")]
++pub(crate) fn pidfd_send_signal(pidfd: BorrowedFd<'_>, sig: Signal) -> io::Result<()> {
++    syscall! {
++        fn pidfd_send_signal(
++            pid: c::pid_t,
++            sig: c::c_int,
++            info: *const c::siginfo_t,
++            flags: c::c_int
++        ) via SYS_pidfd_send_signal -> c::c_int
++    }
++    unsafe {
++        ret(pidfd_send_signal(
++            borrowed_fd(pidfd),
++            sig.as_raw(),
++            core::ptr::null(),
++            0,
++        ))
++    }
++}
++
++#[cfg(target_os = "linux")]
++pub(crate) fn pidfd_getfd(
++    pidfd: BorrowedFd<'_>,
++    targetfd: RawFd,
++    flags: PidfdGetfdFlags,
++) -> io::Result<OwnedFd> {
++    syscall! {
++        fn pidfd_getfd(
++            pidfd: c::c_int,
++            targetfd: c::c_int,
++            flags: c::c_uint
++        ) via SYS_pidfd_getfd -> c::c_int
++    }
++    unsafe {
++        ret_owned_fd(pidfd_getfd(
++            borrowed_fd(pidfd),
++            targetfd,
++            bitflags_bits!(flags),
++        ))
++    }
++}
++
++#[cfg(target_os = "linux")]
++pub(crate) fn pivot_root(new_root: &CStr, put_old: &CStr) -> io::Result<()> {
++    syscall! {
++        fn pivot_root(
++            new_root: *const c::c_char,
++            put_old: *const c::c_char
++        ) via SYS_pivot_root -> c::c_int
++    }
++    unsafe { ret(pivot_root(c_str(new_root), c_str(put_old))) }
++}
++
++#[cfg(all(feature = "alloc", not(target_os = "wasi")))]
++pub(crate) fn getgroups(buf: &mut [Gid]) -> io::Result<usize> {
++    let len = buf.len().try_into().map_err(|_| io::Errno::NOMEM)?;
++
++    unsafe { ret_usize(c::getgroups(len, buf.as_mut_ptr().cast()) as isize) }
++}
++
++#[cfg(not(any(
++    target_os = "emscripten",
++    target_os = "espidf",
++    target_os = "fuchsia",
++    target_os = "horizon",
++    target_os = "redox",
++    target_os = "vita",
++    target_os = "wasi"
++)))]
++#[inline]
++pub(crate) fn fcntl_getlk(fd: BorrowedFd<'_>, lock: &Flock) -> io::Result<Option<Flock>> {
++    let mut curr_lock: c::flock = lock.as_raw();
++    unsafe { ret(c::fcntl(borrowed_fd(fd), c::F_GETLK, &mut curr_lock))? };
++
++    // If no blocking lock is found, `fcntl(GETLK, ..)` sets `l_type` to
++    // `F_UNLCK`.
++    if curr_lock.l_type == c::F_UNLCK as _ {
++        Ok(None)
++    } else {
++        Ok(Some(unsafe { Flock::from_raw_unchecked(curr_lock) }))
++    }
++}
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/clockid.rs b/src/clockid.rs
+--- a/src/clockid.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/clockid.rs	2026-10-23 09:18:49.533479093 -0400
+@@ -46,7 +46,8 @@
+         target_os = "horizon",
+         target_os = "netbsd",
+         target_os = "redox",
+-        target_os = "vita"
++        target_os = "vita",
++        target_os = "zos"
+     )))]
+     #[doc(alias = "CLOCK_PROCESS_CPUTIME_ID")]
+     ProcessCPUTime = c::CLOCK_PROCESS_CPUTIME_ID,
+@@ -57,7 +58,8 @@
+         target_os = "horizon",
+         target_os = "netbsd",
+         target_os = "redox",
+-        target_os = "vita"
++        target_os = "vita",
++        target_os = "zos"
+     )))]
+     #[doc(alias = "CLOCK_THREAD_CPUTIME_ID")]
+     ThreadCPUTime = c::CLOCK_THREAD_CPUTIME_ID,
+@@ -113,7 +115,8 @@
+                 target_os = "horizon",
+                 target_os = "netbsd",
+                 target_os = "redox",
+-                target_os = "vita"
++                target_os = "vita",
++                target_os = "zos"
+             )))]
+             c::CLOCK_PROCESS_CPUTIME_ID => Ok(ClockId::ProcessCPUTime),
+             #[cfg(not(any(
+@@ -121,7 +124,8 @@
+                 target_os = "horizon",
+                 target_os = "netbsd",
+                 target_os = "redox",
+-                target_os = "vita"
++                target_os = "vita",
++                target_os = "zos"
+             )))]
+             c::CLOCK_THREAD_CPUTIME_ID => Ok(ClockId::ThreadCPUTime),
+             #[cfg(any(linux_kernel, target_os = "freebsd"))]
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/io/dup.rs b/src/io/dup.rs
+--- a/src/io/dup.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/io/dup.rs	2026-10-23 09:18:49.534757340 -0400
+@@ -117,7 +117,8 @@
+     target_os = "horizon",
+     target_os = "nto",
+     target_os = "vita",
+-    target_os = "wasi"
++    target_os = "wasi",
++    target_os = "zos"
+ )))]
+ #[inline]
+ pub fn dup3<Fd: AsFd>(fd: Fd, new: &mut OwnedFd, flags: DupFlags) -> io::Result<()> {
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/ioctl/mod.rs b/src/ioctl/mod.rs
+--- a/src/ioctl/mod.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/ioctl/mod.rs	2026-10-23 09:18:49.545745672 -0400
+@@ -324,10 +324,11 @@
+ ))]
+ type _Opcode = c::c_ulong;
+ 
+-// AIX, Emscripten, Fuchsia, Solaris, and WASI use a `int`.
++// AIX, Emscripten, Fuchsia, Solaris, WASI, and z/OS use a `int`.
+ #[cfg(any(
+     solarish,
+     target_os = "aix",
++    target_os = "zos",
+     target_os = "cygwin",
+     target_os = "fuchsia",
+     target_os = "emscripten",
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/termios/types.rs b/src/termios/types.rs
+--- a/src/termios/types.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/termios/types.rs	2026-10-23 09:18:49.557270358 -0400
+@@ -275,7 +275,8 @@
+         const ICRNL = c::ICRNL;
+ 
+         /// `IUCLC`
+-        #[cfg(any(linux_raw_dep, solarish, target_os = "aix", target_os = "haiku", target_os = "nto"))]
++        #[cfg(any(linux_raw_dep, solarish, target_os = "aix",
++ target_os = "zos", target_os = "haiku", target_os = "nto"))]
+         const IUCLC = c::IUCLC;
+ 
+         /// `IXON`
+@@ -289,7 +290,7 @@
+         const IXOFF = c::IXOFF;
+ 
+         /// `IMAXBEL`
+-        #[cfg(not(any(target_os = "haiku", target_os = "redox")))]
++        #[cfg(not(any(target_os = "haiku", target_os = "redox", target_os = "zos")))]
+         const IMAXBEL = c::IMAXBEL;
+ 
+         /// `IUTF8`
+@@ -298,6 +299,8 @@
+             netbsdlike,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "emscripten",
+             target_os = "haiku",
+             target_os = "hurd",
+@@ -323,6 +326,8 @@
+             apple,
+             freebsdlike,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "netbsd",
+             target_os = "redox",
+         )))]
+@@ -458,6 +463,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "haiku",
+             target_os = "redox",
+         )))]
+@@ -570,7 +577,7 @@
+         const CLOCAL = c::CLOCAL;
+ 
+         /// `CRTSCTS`
+-        #[cfg(not(any(target_os = "aix", target_os = "nto", target_os = "redox")))]
++        #[cfg(not(any(target_os = "aix", target_os = "nto", target_os = "redox", target_os = "zos")))]
+         const CRTSCTS = c::CRTSCTS;
+ 
+         /// `CMSPAR`
+@@ -578,6 +585,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "emscripten",
+             target_os = "haiku",
+             target_os = "hurd",
+@@ -601,15 +610,15 @@
+         const XCASE = c::XCASE;
+ 
+         /// `ECHOCTL`
+-        #[cfg(not(target_os = "redox"))]
++        #[cfg(not(any(target_os = "redox", target_os = "zos")))]
+         const ECHOCTL = c::ECHOCTL;
+ 
+         /// `ECHOPRT`
+-        #[cfg(not(any(target_os = "cygwin", target_os = "nto", target_os = "redox")))]
++        #[cfg(not(any(target_os = "cygwin", target_os = "nto", target_os = "redox", target_os = "zos")))]
+         const ECHOPRT = c::ECHOPRT;
+ 
+         /// `ECHOKE`
+-        #[cfg(not(target_os = "redox"))]
++        #[cfg(not(any(target_os = "redox", target_os = "zos")))]
+         const ECHOKE = c::ECHOKE;
+ 
+         /// `FLUSHO`
+@@ -623,6 +632,8 @@
+         /// `EXTPROC`
+         #[cfg(not(any(
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "cygwin",
+             target_os = "haiku",
+             target_os = "nto",
+@@ -726,7 +737,7 @@
+     pub const B38400: u32 = 38400;
+ 
+     /// `B57600`
+-    #[cfg(not(target_os = "aix"))]
++    #[cfg(not(any(target_os = "aix", target_os = "zos")))]
+     pub const B57600: u32 = 57600;
+ 
+     /// `B115200`
+@@ -741,6 +752,8 @@
+     #[cfg(not(any(
+         apple,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "dragonfly",
+         target_os = "haiku",
+         target_os = "openbsd"
+@@ -748,17 +761,21 @@
+     pub const B460800: u32 = 460_800;
+ 
+     /// `B500000`
+-    #[cfg(not(any(bsd, solarish, target_os = "aix", target_os = "haiku")))]
++    #[cfg(not(any(bsd, solarish, target_os = "aix",
++ target_os = "zos", target_os = "haiku")))]
+     pub const B500000: u32 = 500_000;
+ 
+     /// `B576000`
+-    #[cfg(not(any(bsd, solarish, target_os = "aix", target_os = "haiku")))]
++    #[cfg(not(any(bsd, solarish, target_os = "aix",
++ target_os = "zos", target_os = "haiku")))]
+     pub const B576000: u32 = 576_000;
+ 
+     /// `B921600`
+     #[cfg(not(any(
+         apple,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "dragonfly",
+         target_os = "haiku",
+         target_os = "openbsd"
+@@ -766,19 +783,23 @@
+     pub const B921600: u32 = 921_600;
+ 
+     /// `B1000000`
+-    #[cfg(not(any(bsd, target_os = "aix", target_os = "haiku", target_os = "solaris")))]
++    #[cfg(not(any(bsd, target_os = "aix",
++ target_os = "zos", target_os = "haiku", target_os = "solaris")))]
+     pub const B1000000: u32 = 1_000_000;
+ 
+     /// `B1152000`
+-    #[cfg(not(any(bsd, target_os = "aix", target_os = "haiku", target_os = "solaris")))]
++    #[cfg(not(any(bsd, target_os = "aix",
++ target_os = "zos", target_os = "haiku", target_os = "solaris")))]
+     pub const B1152000: u32 = 1_152_000;
+ 
+     /// `B1500000`
+-    #[cfg(not(any(bsd, target_os = "aix", target_os = "haiku", target_os = "solaris")))]
++    #[cfg(not(any(bsd, target_os = "aix",
++ target_os = "zos", target_os = "haiku", target_os = "solaris")))]
+     pub const B1500000: u32 = 1_500_000;
+ 
+     /// `B2000000`
+-    #[cfg(not(any(bsd, target_os = "aix", target_os = "haiku", target_os = "solaris")))]
++    #[cfg(not(any(bsd, target_os = "aix",
++ target_os = "zos", target_os = "haiku", target_os = "solaris")))]
+     pub const B2000000: u32 = 2_000_000;
+ 
+     /// `B2500000`
+@@ -787,6 +808,8 @@
+         target_arch = "sparc64",
+         bsd,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "haiku",
+         target_os = "solaris",
+     )))]
+@@ -798,6 +821,8 @@
+         target_arch = "sparc64",
+         bsd,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "haiku",
+         target_os = "solaris",
+     )))]
+@@ -809,6 +834,8 @@
+         target_arch = "sparc64",
+         bsd,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "haiku",
+         target_os = "solaris",
+     )))]
+@@ -820,6 +847,8 @@
+         target_arch = "sparc64",
+         bsd,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "haiku",
+         target_os = "solaris",
+     )))]
+@@ -859,15 +888,17 @@
+             c::B9600 => Some(9600),
+             c::B19200 => Some(19200),
+             c::B38400 => Some(38400),
+-            #[cfg(not(target_os = "aix"))]
++            #[cfg(not(any(target_os = "aix", target_os = "zos")))]
+             c::B57600 => Some(57600),
+-            #[cfg(not(target_os = "aix"))]
++            #[cfg(not(any(target_os = "aix", target_os = "zos")))]
+             c::B115200 => Some(115_200),
+-            #[cfg(not(any(target_os = "aix", target_os = "nto")))]
++            #[cfg(not(any(target_os = "aix", target_os = "nto", target_os = "zos")))]
+             c::B230400 => Some(230_400),
+             #[cfg(not(any(
+                 apple,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "dragonfly",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -878,6 +909,8 @@
+                 bsd,
+                 solarish,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto"
+             )))]
+@@ -886,6 +919,8 @@
+                 bsd,
+                 solarish,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto"
+             )))]
+@@ -893,6 +928,8 @@
+             #[cfg(not(any(
+                 apple,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "dragonfly",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -902,6 +939,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -910,6 +949,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -918,6 +959,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -926,6 +969,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -936,6 +981,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris",
+@@ -946,6 +993,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris",
+@@ -956,6 +1005,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "cygwin",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -967,6 +1018,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "cygwin",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -998,15 +1051,17 @@
+             9600 => Some(c::B9600),
+             19200 => Some(c::B19200),
+             38400 => Some(c::B38400),
+-            #[cfg(not(target_os = "aix"))]
++            #[cfg(not(any(target_os = "aix", target_os = "zos")))]
+             57600 => Some(c::B57600),
+-            #[cfg(not(target_os = "aix"))]
++            #[cfg(not(any(target_os = "aix", target_os = "zos")))]
+             115_200 => Some(c::B115200),
+-            #[cfg(not(any(target_os = "aix", target_os = "nto")))]
++            #[cfg(not(any(target_os = "aix", target_os = "nto", target_os = "zos")))]
+             230_400 => Some(c::B230400),
+             #[cfg(not(any(
+                 apple,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "dragonfly",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -1017,6 +1072,8 @@
+                 bsd,
+                 solarish,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto"
+             )))]
+@@ -1025,6 +1082,8 @@
+                 bsd,
+                 solarish,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto"
+             )))]
+@@ -1032,6 +1091,8 @@
+             #[cfg(not(any(
+                 apple,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "dragonfly",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -1041,6 +1102,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -1049,6 +1112,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -1057,6 +1122,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -1065,6 +1132,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -1075,6 +1144,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris",
+@@ -1085,6 +1156,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris",
+@@ -1095,6 +1168,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "cygwin",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -1106,6 +1181,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "cygwin",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -1210,6 +1287,8 @@
+         bsd,
+         solarish,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "haiku",
+         target_os = "hurd",
+         target_os = "nto",
+@@ -1230,21 +1309,26 @@
+ 
+     /// `VREPRINT`
+     #[cfg(not(target_os = "haiku"))]
++    #[cfg(not(target_os = "zos"))]
+     pub const VREPRINT: Self = Self(c::VREPRINT as usize);
+ 
+     /// `VDISCARD`
+     #[cfg(not(any(target_os = "aix", target_os = "haiku")))]
++    #[cfg(not(target_os = "zos"))]
+     pub const VDISCARD: Self = Self(c::VDISCARD as usize);
+ 
+     /// `VWERASE`
+     #[cfg(not(any(target_os = "aix", target_os = "haiku")))]
++    #[cfg(not(target_os = "zos"))]
+     pub const VWERASE: Self = Self(c::VWERASE as usize);
+ 
+     /// `VLNEXT`
+     #[cfg(not(target_os = "haiku"))]
++    #[cfg(not(target_os = "zos"))]
+     pub const VLNEXT: Self = Self(c::VLNEXT as usize);
+ 
+     /// `VEOL2`
++    #[cfg(not(target_os = "zos"))]
+     pub const VEOL2: Self = Self(c::VEOL2 as usize);
+ 
+     /// `VSWTCH`
+@@ -1256,9 +1340,12 @@
+         bsd,
+         solarish,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "hurd",
+         target_os = "nto"
+     ))]
++    #[cfg(not(target_os = "zos"))]
+     pub const VDSUSP: Self = Self(c::VDSUSP as usize);
+ 
+     /// `VSTATUS`
+@@ -1281,6 +1368,8 @@
+                 solarish,
+                 all(linux_kernel, any(target_arch = "sparc", target_arch = "sparc64")),
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+             )))]
+             Self::VEOF => write!(f, "VEOF"),
+@@ -1288,6 +1377,8 @@
+                 solarish,
+                 all(linux_kernel, any(target_arch = "sparc", target_arch = "sparc64")),
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+             )))]
+             Self::VTIME => write!(f, "VTIME"),
+@@ -1295,6 +1386,8 @@
+                 solarish,
+                 all(linux_kernel, any(target_arch = "sparc", target_arch = "sparc64")),
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+             )))]
+             Self::VMIN => write!(f, "VMIN"),
+@@ -1305,6 +1398,8 @@
+                 solarish,
+                 all(linux_kernel, any(target_arch = "sparc", target_arch = "sparc64")),
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+             ))]
+             Self::VMIN => write!(f, "VMIN/VEOF"),
+@@ -1312,6 +1407,8 @@
+                 solarish,
+                 all(linux_kernel, any(target_arch = "sparc", target_arch = "sparc64")),
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+             ))]
+             Self::VTIME => write!(f, "VTIME/VEOL"),
+@@ -1320,6 +1417,8 @@
+                 bsd,
+                 solarish,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "hurd",
+                 target_os = "nto",
+@@ -1332,17 +1431,20 @@
+                 solarish,
+                 all(linux_kernel, any(target_arch = "sparc", target_arch = "sparc64")),
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+             )))]
+             Self::VEOL => write!(f, "VEOL"),
+-            #[cfg(not(target_os = "haiku"))]
++            #[cfg(not(any(target_os = "haiku", target_os = "zos")))]
+             Self::VREPRINT => write!(f, "VREPRINT"),
+-            #[cfg(not(any(target_os = "aix", target_os = "haiku")))]
++            #[cfg(not(any(target_os = "aix", target_os = "haiku", target_os = "zos")))]
+             Self::VDISCARD => write!(f, "VDISCARD"),
+-            #[cfg(not(any(target_os = "aix", target_os = "haiku")))]
++            #[cfg(not(any(target_os = "aix", target_os = "haiku", target_os = "zos")))]
+             Self::VWERASE => write!(f, "VWERASE"),
+-            #[cfg(not(target_os = "haiku"))]
++            #[cfg(not(any(target_os = "haiku", target_os = "zos")))]
+             Self::VLNEXT => write!(f, "VLNEXT"),
++            #[cfg(not(target_os = "zos"))]
+             Self::VEOL2 => write!(f, "VEOL2"),
+             #[cfg(any(solarish, target_os = "haiku", target_os = "nto"))]
+             Self::VSWTCH => write!(f, "VSWTCH"),
+diff -ruN '--exclude=.cargo-ok' '--exclude=.cargo_vcs_info.json' a/src/timespec.rs b/src/timespec.rs
+--- a/src/timespec.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/timespec.rs	2026-10-23 09:19:07.555873824 -0400
+@@ -225,6 +225,8 @@
+         Ok(c::timeval {
+             tv_sec: sec.try_into().map_err(|_| crate::io::Errno::INVAL)?,
+             tv_usec: usec as _,
++            #[cfg(target_os = "zos")]
++            tv_usec_pad: 0,
+         })
+     }
+ 

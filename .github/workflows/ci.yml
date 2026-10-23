@@ -1,0 +1,25 @@
+name: Ruff z/OS CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate buildenv syntax
+        run: bash -n buildenv
+      - name: Check reproducible patch set
+        run: |
+          base=patches/ruff-0.17.2
+          test -f "$base/ruff-0.17.2-zos.patch"
+          test -f "$base/Cargo.lock.zos"
+          test -f "$base/rustc-procmacro-wrapper.sh"
+          test -f "$base/zos_ruff_stubs.c"
+          test "$(find "$base/dependencies" -type f -name '*.patch' | wc -l)" -eq 17
+          grep -q 'profile.zos' "$base/ruff-0.17.2-zos.patch"
+          echo "Complete Ruff 0.17.2 patch set is present"

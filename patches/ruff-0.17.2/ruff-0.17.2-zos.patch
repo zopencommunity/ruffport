@@ -1,0 +1,484 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index ae31696..defb517 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -326,6 +326,25 @@ unused_peekable = "warn"
+ # `else`, then some might consider that harder to read.
+ if_not_else = "allow"
+ 
++[patch.crates-io]
++ar_archive_writer = { path = "zos-deps/ar_archive_writer" }
++clearscreen = { path = "zos-deps/clearscreen" }
++filetime = { path = "zos-deps/filetime" }
++getrandom = { path = "zos-deps/getrandom-04" }
++icu_collections = { path = "zos-deps/icu_collections" }
++icu_locale_core = { path = "zos-deps/icu_locale_core" }
++icu_normalizer = { path = "zos-deps/icu_normalizer" }
++icu_provider = { path = "zos-deps/icu_provider" }
++ignore = { path = "zos-deps/ignore" }
++libc = { path = "zos-deps/libc" }
++nix = { path = "zos-deps/nix" }
++psm = { path = "zos-deps/psm" }
++rustix = { path = "zos-deps/rustix" }
++salsa = { path = "zos-deps/salsa" }
++salsa-macros = { path = "zos-deps/salsa-macros" }
++zip = { path = "zos-deps/zip" }
++zstd-sys = { path = "zos-deps/zstd-sys" }
++
+ [profile.release]
+ lto = "fat"
+ codegen-units = 16
+@@ -341,6 +360,14 @@ codegen-units = 1
+ codegen-units = 1
+ 
+ # Profile to build a minimally sized binary for ruff/ty
++[profile.zos]
++inherits = "release"
++opt-level = "z"
++debug = 0
++codegen-units = 1
++lto = false
++strip = true
++
+ [profile.minimal-size]
+ inherits = "release"
+ opt-level = "z"
+diff --git a/crates/ruff/src/lib.rs b/crates/ruff/src/lib.rs
+index cb62866..b219c32 100644
+--- a/crates/ruff/src/lib.rs
++++ b/crates/ruff/src/lib.rs
+@@ -1,3 +1,4 @@
++#![feature(duration_constructors, let_chains)]
+ #![allow(clippy::print_stdout)]
+ 
+ use std::ffi::OsString;
+diff --git a/crates/ruff_annotate_snippets/src/lib.rs b/crates/ruff_annotate_snippets/src/lib.rs
+index e470834..9e9d19e 100644
+--- a/crates/ruff_annotate_snippets/src/lib.rs
++++ b/crates/ruff_annotate_snippets/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ //! Format [diagnostic reports][Report], including highlighting snippets of text
+ //!
+ //! # Example
+diff --git a/crates/ruff_db/src/lib.rs b/crates/ruff_db/src/lib.rs
+index 0f3eb8d..e3aa8a4 100644
+--- a/crates/ruff_db/src/lib.rs
++++ b/crates/ruff_db/src/lib.rs
+@@ -1,3 +1,11 @@
++#![feature(
++    const_vec_string_slice,
++    debug_closure_helpers,
++    let_chains,
++    nonnull_provenance,
++    round_char_boundary,
++    unsigned_is_multiple_of
++)]
+ #![warn(
+     clippy::disallowed_methods,
+     reason = "Prefer System trait methods over std methods"
+diff --git a/crates/ruff_db/src/parsed.rs b/crates/ruff_db/src/parsed.rs
+index a19aef8..b922e1c 100644
+--- a/crates/ruff_db/src/parsed.rs
++++ b/crates/ruff_db/src/parsed.rs
+@@ -435,7 +435,8 @@ mod indexed {
+                                 aligned && address.is_multiple_of(Self::ALIGNMENT),
+                             )
+                         });
+-                let offset_bits = ((max - base) / Self::ALIGNMENT).bit_width();
++                let max_offset = (max - base) / Self::ALIGNMENT;
++                let offset_bits = usize::BITS - max_offset.leading_zeros();
+                 let relative_bits = u8::try_from(offset_bits)
+                     .expect("an address offset cannot require more than u8::MAX bits")
+                     + Self::KIND_BITS;
+diff --git a/crates/ruff_linter/src/fs.rs b/crates/ruff_linter/src/fs.rs
+index 917f052..4624ee1 100644
+--- a/crates/ruff_linter/src/fs.rs
++++ b/crates/ruff_linter/src/fs.rs
+@@ -9,9 +9,13 @@ use crate::settings::types::CompiledPerFileIgnoreList;
+ ///
+ /// On WASM this just returns `.`. Otherwise, defer to [`path_absolutize::path_dedot::CWD`].
+ pub(crate) fn get_cwd() -> &'static Path {
+-    cfg_select! {
+-        target_arch = "wasm32" => Path::new("."),
+-        _ => path_absolutize::path_dedot::CWD.as_path(),
++    #[cfg(target_arch = "wasm32")]
++    {
++        Path::new(".")
++    }
++    #[cfg(not(target_arch = "wasm32"))]
++    {
++        path_absolutize::path_dedot::CWD.as_path()
+     }
+ }
+ 
+diff --git a/crates/ruff_linter/src/lib.rs b/crates/ruff_linter/src/lib.rs
+index f971c43..7afaeab 100644
+--- a/crates/ruff_linter/src/lib.rs
++++ b/crates/ruff_linter/src/lib.rs
+@@ -1,3 +1,11 @@
++#![feature(
++    debug_closure_helpers,
++    if_let_guard,
++    let_chains,
++    round_char_boundary,
++    unsigned_is_multiple_of
++)]
++
+ //! This is the library for the [Ruff] Python linter.
+ //!
+ //! **The API is currently completely unstable**
+diff --git a/crates/ruff_linter/src/message/sarif.rs b/crates/ruff_linter/src/message/sarif.rs
+index 9ea54b8..31d54cb 100644
+--- a/crates/ruff_linter/src/message/sarif.rs
++++ b/crates/ruff_linter/src/message/sarif.rs
+@@ -382,11 +382,15 @@ impl<'a> SarifResult<'a> {
+     #[allow(clippy::unnecessary_wraps)]
+     fn uri(diagnostic: &Diagnostic) -> Result<String> {
+         let path = normalize_path(&*diagnostic.expect_ruff_filename());
+-        cfg_select! {
+-            target_arch = "wasm32" => Ok(format!("file://{}", path.display())),
+-            _ => url::Url::from_file_path(&path)
++        #[cfg(target_arch = "wasm32")]
++        {
++            Ok(format!("file://{}", path.display()))
++        }
++        #[cfg(not(target_arch = "wasm32"))]
++        {
++            url::Url::from_file_path(&path)
+                 .map_err(|()| anyhow::anyhow!("Failed to convert path to URL: {}", path.display()))
+-                .map(|url| url.to_string()),
++                .map(|url| url.to_string())
+         }
+     }
+ 
+diff --git a/crates/ruff_linter/src/registry/rule_set.rs b/crates/ruff_linter/src/registry/rule_set.rs
+index a937e87..9278010 100644
+--- a/crates/ruff_linter/src/registry/rule_set.rs
++++ b/crates/ruff_linter/src/registry/rule_set.rs
+@@ -354,9 +354,9 @@ impl Iterator for RuleSetIterator {
+     fn next(&mut self) -> Option<Self::Item> {
+         loop {
+             let slice = self.set.0.get_mut(self.index as usize)?;
+-            if let Some(bit) = slice.lowest_one() {
++            if *slice != 0 {
+                 #[expect(clippy::cast_possible_truncation)]
+-                let bit = bit as u16;
++                let bit = slice.trailing_zeros() as u16;
+                 *slice ^= 1 << bit;
+                 let rule_value = self.index * RuleSet::SLICE_BITS + bit;
+                 // SAFETY: RuleSet guarantees that only valid rules are stored in the set.
+diff --git a/crates/ruff_linter/src/rule_selector.rs b/crates/ruff_linter/src/rule_selector.rs
+index 3ec7b4f..8d24104 100644
+--- a/crates/ruff_linter/src/rule_selector.rs
++++ b/crates/ruff_linter/src/rule_selector.rs
+@@ -106,15 +106,15 @@ impl std::fmt::Display for RuleResolutionError {
+             kind,
+         } = self;
+         let setting = match setting {
+-            Some(setting) => format_args!(" in `{}`", *setting),
+-            None => format_args!(""),
++            Some(setting) => format!(" in `{}`", *setting),
++            None => String::new(),
+         };
+         let source = match &source {
+-            ValueSource::File(path) => format_args!("`{}`", path.as_path()),
+-            ValueSource::ScriptMetadata(_) => format_args!("script metadata"),
+-            ValueSource::Cli => format_args!("the CLI"),
+-            ValueSource::Editor => format_args!("the editor configuration"),
+-            ValueSource::UvMetadata => format_args!("uv metadata"),
++            ValueSource::File(path) => format!("`{}`", path.as_path()),
++            ValueSource::ScriptMetadata(_) => "script metadata".to_string(),
++            ValueSource::Cli => "the CLI".to_string(),
++            ValueSource::Editor => "the editor configuration".to_string(),
++            ValueSource::UvMetadata => "uv metadata".to_string(),
+         };
+         match kind {
+             RuleResolutionErrorKind::Removed => {
+diff --git a/crates/ruff_linter/src/rules/pyflakes/fixes.rs b/crates/ruff_linter/src/rules/pyflakes/fixes.rs
+index e6d1c61..1176227 100644
+--- a/crates/ruff_linter/src/rules/pyflakes/fixes.rs
++++ b/crates/ruff_linter/src/rules/pyflakes/fixes.rs
+@@ -1,4 +1,3 @@
+-use std::debug_assert_matches;
+ 
+ use anyhow::{Context, Ok, Result};
+ 
+@@ -127,7 +126,7 @@ pub(crate) fn remove_exception_handler_assignment(
+     let preceding = tokenizer
+         .next()
+         .context("expected the exception name to be preceded by `as`")?;
+-    debug_assert_matches!(preceding.kind, SimpleTokenKind::As);
++    debug_assert!(matches!(preceding.kind, SimpleTokenKind::As));
+ 
+     // Lex to the end of the preceding token, which should be the exception value.
+     let preceding = tokenizer
+@@ -139,7 +138,7 @@ pub(crate) fn remove_exception_handler_assignment(
+         .skip_trivia()
+         .next()
+         .context("expected the exception name to be followed by a colon")?;
+-    debug_assert_matches!(following.kind, SimpleTokenKind::Colon);
++    debug_assert!(matches!(following.kind, SimpleTokenKind::Colon));
+ 
+     Ok(Edit::deletion(preceding.end(), following.start()))
+ }
+diff --git a/crates/ruff_markdown/src/lib.rs b/crates/ruff_markdown/src/lib.rs
+index 66d69e5..cb24626 100644
+--- a/crates/ruff_markdown/src/lib.rs
++++ b/crates/ruff_markdown/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ use std::{path::Path, sync::LazyLock};
+ 
+ use regex::Regex;
+diff --git a/crates/ruff_notebook/src/lib.rs b/crates/ruff_notebook/src/lib.rs
+index 6617560..19ca853 100644
+--- a/crates/ruff_notebook/src/lib.rs
++++ b/crates/ruff_notebook/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(array_windows)]
++
+ //! Utils for reading and writing jupyter notebooks
+ 
+ pub use cell::*;
+diff --git a/crates/ruff_python_ast/src/lib.rs b/crates/ruff_python_ast/src/lib.rs
+index 7f2eae3..33f95a8 100644
+--- a/crates/ruff_python_ast/src/lib.rs
++++ b/crates/ruff_python_ast/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ use std::ffi::OsStr;
+ use std::path::Path;
+ 
+diff --git a/crates/ruff_python_ast/src/node_index.rs b/crates/ruff_python_ast/src/node_index.rs
+index 55e2b69..3ee3542 100644
+--- a/crates/ruff_python_ast/src/node_index.rs
++++ b/crates/ruff_python_ast/src/node_index.rs
+@@ -89,7 +89,7 @@ pub enum NodeIndexError {
+ }
+ 
+ const MAX_LEVEL: u32 = 2;
+-const LEVEL_BITS: u32 = MAX_LEVEL.bit_width();
++const LEVEL_BITS: u32 = u32::BITS - MAX_LEVEL.leading_zeros();
+ const LEVEL_SHIFT: u32 = 32 - LEVEL_BITS;
+ const LEVEL_MASK: u32 = ((LEVEL_BITS << 1) - 1) << LEVEL_SHIFT;
+ const SUB_NODES: u32 = 256;
+diff --git a/crates/ruff_python_formatter/src/comments/placement.rs b/crates/ruff_python_formatter/src/comments/placement.rs
+index c0f9c8b..5d0272e 100644
+--- a/crates/ruff_python_formatter/src/comments/placement.rs
++++ b/crates/ruff_python_formatter/src/comments/placement.rs
+@@ -10,7 +10,6 @@ use ruff_python_trivia::{
+ use ruff_source_file::LineRanges;
+ use ruff_text_size::{Ranged, TextLen, TextRange, TextSize};
+ use std::cmp::Ordering;
+-use std::debug_assert_matches;
+ 
+ use crate::comments::visitor::{CommentPlacement, DecoratedComment};
+ use crate::expression::expr_slice::{ExprSliceCommentSection, assign_comment_in_slice};
+@@ -1162,7 +1161,10 @@ fn handle_slice_comments<'a>(
+         //     1:
+         // ]
+         // ```
+-        debug_assert_matches!(comment.enclosing_node(), AnyNodeRef::ExprSubscript(_));
++        debug_assert!(matches!(
++            comment.enclosing_node(),
++            AnyNodeRef::ExprSubscript(_)
++        ));
+         return CommentPlacement::dangling(comment.enclosing_node(), comment);
+     }
+ 
+@@ -1319,10 +1321,10 @@ fn handle_dict_unpacking_comment<'a>(
+     comment: DecoratedComment<'a>,
+     source: &str,
+ ) -> CommentPlacement<'a> {
+-    debug_assert_matches!(
++    debug_assert!(matches!(
+         comment.enclosing_node(),
+         AnyNodeRef::ExprDict(_) | AnyNodeRef::ExprDictComp(_)
+-    );
++    ));
+ 
+     // no node after our comment so we can't be between `**` and the name (node)
+     let Some(following) = comment.following_node() else {
+@@ -1362,10 +1364,10 @@ fn handle_key_value_comment<'a>(
+     comment: DecoratedComment<'a>,
+     source: &str,
+ ) -> CommentPlacement<'a> {
+-    debug_assert_matches!(
++    debug_assert!(matches!(
+         comment.enclosing_node(),
+         AnyNodeRef::ExprDict(_) | AnyNodeRef::ExprDictComp(_)
+-    );
++    ));
+ 
+     let (Some(following), Some(preceding)) = (comment.following_node(), comment.preceding_node())
+     else {
+@@ -2001,10 +2003,10 @@ fn handle_bracketed_end_of_line_comment<'a>(
+         let Some(paren) = lexer.next() else {
+             return CommentPlacement::Default(comment);
+         };
+-        debug_assert_matches!(
++        debug_assert!(matches!(
+             paren.kind(),
+             SimpleTokenKind::LParen | SimpleTokenKind::LBrace | SimpleTokenKind::LBracket
+-        );
++        ));
+ 
+         // If there are no additional tokens between the open parenthesis and the comment, then
+         // it should be attached as a dangling comment on the brackets, rather than a leading
+diff --git a/crates/ruff_python_formatter/src/lib.rs b/crates/ruff_python_formatter/src/lib.rs
+index 02c3847..c8f5155 100644
+--- a/crates/ruff_python_formatter/src/lib.rs
++++ b/crates/ruff_python_formatter/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(assert_matches, let_chains, unsigned_is_multiple_of)]
++
+ use ruff_db::PythonFile;
+ use ruff_db::diagnostic::{Diagnostic, DiagnosticId, Severity};
+ use ruff_db::files::File;
+diff --git a/crates/ruff_python_formatter/src/other/parameters.rs b/crates/ruff_python_formatter/src/other/parameters.rs
+index 8933822..637c294 100644
+--- a/crates/ruff_python_formatter/src/other/parameters.rs
++++ b/crates/ruff_python_formatter/src/other/parameters.rs
+@@ -1,4 +1,4 @@
+-use std::assert_matches;
++use std::assert_matches::assert_matches;
+ 
+ use ruff_formatter::{FormatRuleWithOptions, format_args, write};
+ use ruff_python_ast::{AnyNodeRef, Parameters};
+diff --git a/crates/ruff_python_importer/src/lib.rs b/crates/ruff_python_importer/src/lib.rs
+index 557d9f5..8189833 100644
+--- a/crates/ruff_python_importer/src/lib.rs
++++ b/crates/ruff_python_importer/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ /*!
+ Low-level helpers for manipulating Python import statements.
+ */
+diff --git a/crates/ruff_python_literal/src/lib.rs b/crates/ruff_python_literal/src/lib.rs
+index 89c446e..49a08d5 100644
+--- a/crates/ruff_python_literal/src/lib.rs
++++ b/crates/ruff_python_literal/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains, round_char_boundary)]
++
+ pub mod cformat;
+ mod char;
+ pub mod escape;
+diff --git a/crates/ruff_python_parser/src/lexer.rs b/crates/ruff_python_parser/src/lexer.rs
+index 212216c..2fe7e86 100644
+--- a/crates/ruff_python_parser/src/lexer.rs
++++ b/crates/ruff_python_parser/src/lexer.rs
+@@ -1051,8 +1051,10 @@ impl<'src> Lexer<'src> {
+     fn lex_number_radix(&mut self, radix: Radix) -> TokenKind {
+         #[cfg(debug_assertions)]
+         {
+-            use std::debug_assert_matches;
+-            debug_assert_matches!(self.cursor.previous().to_ascii_lowercase(), 'x' | 'o' | 'b');
++            debug_assert!(matches!(
++                self.cursor.previous().to_ascii_lowercase(),
++                'x' | 'o' | 'b'
++            ));
+         }
+ 
+         let number = self.radix_run(radix);
+diff --git a/crates/ruff_python_parser/src/lib.rs b/crates/ruff_python_parser/src/lib.rs
+index 1cd71e4..9585f6d 100644
+--- a/crates/ruff_python_parser/src/lib.rs
++++ b/crates/ruff_python_parser/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(if_let_guard, let_chains)]
++
+ //! This crate can be used to parse Python source code into an Abstract
+ //! Syntax Tree.
+ //!
+diff --git a/crates/ruff_python_parser/src/token_source.rs b/crates/ruff_python_parser/src/token_source.rs
+index f817f36..4752da5 100644
+--- a/crates/ruff_python_parser/src/token_source.rs
++++ b/crates/ruff_python_parser/src/token_source.rs
+@@ -260,5 +260,5 @@ fn allocate_tokens_vec(contents: &str) -> Vec<Token> {
+ 
+     // Stay on a power-of-two bucket so that later geometric growth does not preserve an
+     // arbitrary capacity offset.
+-    Vec::with_capacity(capacity_hint.isolate_highest_one())
++    Vec::with_capacity(1usize << (usize::BITS - 1 - capacity_hint.leading_zeros()))
+ }
+diff --git a/crates/ruff_server/src/lib.rs b/crates/ruff_server/src/lib.rs
+index 366d5ef..aa77de9 100644
+--- a/crates/ruff_server/src/lib.rs
++++ b/crates/ruff_server/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ //! ## The Ruff Language Server
+ 
+ use std::num::NonZeroUsize;
+diff --git a/crates/ty_module_resolver/src/lib.rs b/crates/ty_module_resolver/src/lib.rs
+index f7557da..8b38e79 100644
+--- a/crates/ty_module_resolver/src/lib.rs
++++ b/crates/ty_module_resolver/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(assert_matches, debug_closure_helpers, let_chains)]
++
+ use std::hash::BuildHasherDefault;
+ use std::iter::FusedIterator;
+ 
+diff --git a/crates/ty_module_resolver/src/path.rs b/crates/ty_module_resolver/src/path.rs
+index f419a29..0a81fc0 100644
+--- a/crates/ty_module_resolver/src/path.rs
++++ b/crates/ty_module_resolver/src/path.rs
+@@ -1,6 +1,6 @@
+ //! Internal abstractions for differentiating between different kinds of search paths.
+ 
+-use std::assert_matches;
++use std::assert_matches::assert_matches;
+ use std::fmt;
+ use std::sync::Arc;
+ 
+diff --git a/crates/ty_module_resolver/src/typeshed.rs b/crates/ty_module_resolver/src/typeshed.rs
+index b7897cc..9b6095e 100644
+--- a/crates/ty_module_resolver/src/typeshed.rs
++++ b/crates/ty_module_resolver/src/typeshed.rs
+@@ -239,7 +239,7 @@ impl PyVersionRange {
+ 
+     /// Display the version range in a way that is suitable for rendering in user-facing diagnostics.
+     pub fn diagnostic_display(&self) -> impl std::fmt::Display {
+-        fmt::from_fn(|f| match self {
++        fmt::from_fn(move |f| match self {
+             PyVersionRange::AvailableFrom(range_from) => write!(f, "{}+", range_from.start),
+             PyVersionRange::AvailableWithin(range_inclusive) => {
+                 // Don't trust the start Python version if it's 3.0 or lower.
+diff --git a/crates/ty_site_packages/src/lib.rs b/crates/ty_site_packages/src/lib.rs
+index 11f6e4a..4ace2b9 100644
+--- a/crates/ty_site_packages/src/lib.rs
++++ b/crates/ty_site_packages/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ //! Utilities for finding the `site-packages` directory,
+ //! into which third-party packages are installed.
+ //!
+@@ -10,7 +12,6 @@
+ 
+ mod version;
+ 
+-use std::debug_assert_matches;
+ use std::hash::{Hash, Hasher};
+ use std::io;
+ use std::num::NonZeroUsize;
+@@ -135,9 +136,8 @@ impl SitePackagesPaths {
+             .map(|c| {
+                 // This should have all been validated in `site_packages.rs`
+                 // when we resolved the search paths for the project.
+-                debug_assert_matches!(
+-                    c,
+-                    Utf8Component::Normal(_),
++                debug_assert!(
++                    matches!(c, Utf8Component::Normal(_)),
+                     "Unexpected component in site-packages path \
+                     (expected `site-packages` to be an absolute path \
+                     with symlinks resolved, located at \
