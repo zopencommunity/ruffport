@@ -20,6 +20,7 @@ jobs:
           test -f "$base/Cargo.lock.zos"
           test -f "$base/rustc-procmacro-wrapper.sh"
           test -f "$base/zos_ruff_stubs.c"
+          test -f "$base/build_zos_wheels.py"
           test "$(find "$base/dependencies" -type f -name '*.patch' | wc -l)" -eq 17
           grep -q 'profile.zos' "$base/ruff-0.17.2-zos.patch"
           echo "Complete Ruff 0.17.2 patch set is present"

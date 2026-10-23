@@ -8,8 +8,26 @@ IBM Rust 1.86 toolchain.
 
 ## Install
 
+As a zopen package:
+
 ```sh
 zopen install ruff
+```
+
+Or from the zopen Python wheel index:
+
+```sh
+export PIP_EXTRA_INDEX_URL="https://repo.zopen.community/pypi/wheels/simple/"
+export PIP_CONSTRAINT="https://repo.zopen.community/pulp/content/constraints/zopen-constraints.txt"
+python -m pip install ruff
+```
+
+The wheel provides both the `ruff` command and the Python launcher module:
+
+```sh
+ruff --version
+python -m ruff --version
+python -c 'import ruff; print(ruff.find_ruff_bin())'
 ```
 
 ## Use
@@ -30,7 +48,8 @@ ruff format .
   `e104064398bbca3105375dbd2f7c850d788c5879f1ce6c7bfffbf0769bf34628`
 
 Validated directly on z/OS with version/help output, lint detection, safe fixes,
-format checks, formatting, and recursive source discovery.
+format checks, formatting, recursive source discovery, wheel installation,
+`import ruff`, and `python -m ruff`.
 
 ## Reproducible patch set
 

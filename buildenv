@@ -4,115 +4,238 @@ RUFF_VERSION="0.17.2"
 export ZOPEN_PROJECT_NAME="ruff"
 export ZOPEN_NAME="ruff-${RUFF_VERSION}"
 export ZOPEN_BUILD_LINE="STABLE"
+export ZOPEN_TYPE="BARE"
+export ZOPEN_STABLE_TYPE="BARE"
+export ZOPEN_DEV_TYPE="BARE"
 export ZOPEN_STABLE_URL="https://github.com/astral-sh/ruff.git"
 export ZOPEN_STABLE_TAG="${RUFF_VERSION}"
-export ZOPEN_STABLE_TYPE="BARE"
-# zopen-build requires the dependency variables to be declared even when this
-# standalone binary has no build dependencies. A single space is the standard
-# representation used by other dependency-free binary ports.
-export ZOPEN_STABLE_DEPS=" "
 export ZOPEN_DEV_URL="https://github.com/astral-sh/ruff.git"
-export ZOPEN_DEV_TYPE="BARE"
-export ZOPEN_DEV_DEPS=""
+export ZOPEN_STABLE_DEPS="check_python curl"
+export ZOPEN_DEV_DEPS="check_python curl"
+export ZOPEN_RUNTIME_DEPS="check_python"
 export ZOPEN_CATEGORIES="development"
-export ZOPEN_RUNTIME_DEPS=""
-export ZOPEN_TYPE="BARE"
+
+# Treat Ruff as a Python distribution as well as a standalone executable. This
+# stages its wheels for the zopen Python index and exercises every interpreter
+# exported by check_python.
+export ZOPEN_BUILD_SYSTEM="Python"
 export ZOPEN_BOOTSTRAP="skip"
 export ZOPEN_CONFIGURE="skip"
-export ZOPEN_MAKE="skip"
-export ZOPEN_CHECK="zopen_custom_check"
-export ZOPEN_INSTALL="zopen_custom_install"
+export ZOPEN_COMP="skip"
+export ZOPEN_MAKE="zopen_custom_build"
 
-# Cache key for the published cross-compiled asset.
+WHEEL_BASE_URL="https://github.com/zopencommunity/ruffport/releases/download/v${RUFF_VERSION}"
 RUFF_ASSET_REVISION="e104064398bbca31"
-RUFF_BINARY_URL="https://github.com/zopencommunity/ruffport/releases/download/v${RUFF_VERSION}/ruff?rev=${RUFF_ASSET_REVISION}"
-
-zopen_check_results() {
-  dir="$1"; pfx="$2"; chk="${dir}/${pfx}_check.log"
-  passed=$(grep -c "^PASS:" "${chk}" 2>/dev/null)
-  failed=$(grep -c "^FAIL:" "${chk}" 2>/dev/null)
-  passed=${passed:-0}; failed=${failed:-0}
-  total=$((passed + failed))
-  if [ "${total}" -eq 0 ]; then failed=1; total=1; fi
-  echo "actualFailures:${failed}"
-  echo "totalTests:${total}"
-  echo "expectedFailures:0"
-  echo "expectedTotalTests:${total}"
-}
 
 zopen_get_version() {
   echo "${RUFF_VERSION}"
 }
 
+# Python 3.12 and 3.13 derive a machine-specific os390 platform tag. Python
+# 3.14 reports the stable `zos` platform tag. Try the interpreter's own value
+# first and then the release assets known to be portable across the z/OS estate.
+_ruff_platform_tags() {
+  _pt=$("$(_zopen_python_interpreter_path "$1")" -c \
+    'import sysconfig; print(sysconfig.get_platform().replace("-","_").replace(".","_"))' \
+    2>/dev/null)
+  echo "${_pt} zos os390_29_00_8561"
+}
+
 zopen_init() {
-  rm -f ruff
-  if ! curl -fL --retry 3 -o ruff "${RUFF_BINARY_URL}"; then
-    printError "Could not download the ruff binary from ${RUFF_BINARY_URL}"
-    return 1
-  fi
+  rm -rf wheels
+  mkdir -p wheels || return 1
 
-  _ruff_bytes=$(wc -c < ruff | tr -d ' ')
-  if [ "${_ruff_bytes}" -lt 10000000 ] || [ "${_ruff_bytes}" -gt 300000000 ]; then
-    printError "Downloaded ruff binary has an unexpected size: ${_ruff_bytes} bytes"
-    return 1
-  fi
+  for _pv in $(_zopen_python_versions); do
+    _tag="cp$(echo "${_pv}" | tr -d '.')"
+    _got=""
+    _tried=""
 
-  chtag -b ./ruff
-  chmod +x ./ruff
-  printInfo "Downloaded ruff binary: ${_ruff_bytes} bytes"
-}
+    for _plat in $(_ruff_platform_tags "${_pv}"); do
+      case " ${_tried} " in *" ${_plat} "*) continue ;; esac
+      _tried="${_tried} ${_plat}"
+      _whl="ruff-${RUFF_VERSION}-${_tag}-none-${_plat}.whl"
+      if curl -fsSL --retry 3 -o "wheels/${_whl}" \
+          "${WHEEL_BASE_URL}/${_whl}?rev=${RUFF_ASSET_REVISION}" 2>/dev/null; then
+        chtag -b "wheels/${_whl}"
+        printInfo "Fetched ${_whl}"
+        _got="${_whl}"
+        break
+      fi
+      rm -f "wheels/${_whl}"
+    done
 
-zopen_custom_check() {
-  _ruff="$(pwd)/ruff"
-  _work="$(pwd)/.ruff-check"
-  _pass=0
-  _fail=0
-
-  _check() {
-    if ( eval "$2" ) > "${_work}/last.log" 2>&1; then
-      echo "PASS: $1"
-      _pass=$((_pass + 1))
-    else
-      echo "FAIL: $1" >&2
-      sed 's/^/       /' "${_work}/last.log" 2>/dev/null | head -20 >&2
-      _fail=$((_fail + 1))
+    if [ -z "${_got}" ]; then
+      printSoftError "No Ruff wheel for Python ${_pv} at ${WHEEL_BASE_URL}"
+      printSoftError "Tried platform tags:${_tried}"
+      return 1
     fi
-  }
-
-  rm -rf "${_work}"
-  mkdir -p "${_work}/nested"
-
-  # Emit known ASCII bytes independent of the shell's active EBCDIC mode.
-  printf '\151\155\160\157\162\164\040\157\163\012\170\075\061\012' > "${_work}/bad.py"
-  printf '\160\162\151\156\164\050\042\157\153\042\051\012' > "${_work}/nested/good.py"
-  chtag -tc ISO8859-1 "${_work}/bad.py" "${_work}/nested/good.py"
-
-  _check "ruff reports its version" \
-    "'${_ruff}' --version | grep -q '${RUFF_VERSION}'"
-  _check "ruff detects a lint violation" \
-    "'${_ruff}' check '${_work}/bad.py' >'${_work}/lint.log' 2>&1; rc=\$?; test \$rc -eq 1 && grep -q F401 '${_work}/lint.log'"
-  _check "ruff applies a safe lint fix" \
-    "cp '${_work}/bad.py' '${_work}/fix.py' && '${_ruff}' check --fix '${_work}/fix.py' && '${_ruff}' check '${_work}/fix.py'"
-  _check "ruff detects unformatted source" \
-    "'${_ruff}' format --check '${_work}/bad.py' >'${_work}/format-check.log' 2>&1; test \$? -eq 1"
-  _check "ruff formats source" \
-    "'${_ruff}' format '${_work}/bad.py' && '${_ruff}' format --check '${_work}/bad.py'"
-  _check "ruff walks a source directory" \
-    "'${_ruff}' check '${_work}/nested'"
-
-  echo "ruff ${RUFF_VERSION} -- ${_pass} passed, ${_fail} failed"
-  rm -rf "${_work}"
-  [ "${_fail}" -eq 0 ]
+  done
 }
 
-zopen_custom_install() {
-  mkdir -p "${ZOPEN_INSTALL_DIR}/bin"
-  cp ./ruff "${ZOPEN_INSTALL_DIR}/bin/ruff"
-  chtag -b "${ZOPEN_INSTALL_DIR}/bin/ruff"
-  chmod +x "${ZOPEN_INSTALL_DIR}/bin/ruff"
+# Stage the prebuilt wheel for each interpreter. Ruff's Python package is
+# ABI-independent, but interpreter-specific tags prevent a z/OS executable
+# from being selected by pip on another operating system. The shared zopen
+# retagging helper removes machine-specific os390 tags while preserving `zos`.
+zopen_custom_build() {
+  _zopen_python_verify_interpreters || return 1
+  rm -rf dist
+  mkdir -p dist || return 1
+
+  for _pv in $(_zopen_python_versions); do
+    _zopen_python_ensure_venv_for "${_pv}" || return 1
+    _tag="cp$(echo "${_pv}" | tr -d '.')"
+    _src=""
+    for _cand in wheels/ruff-${RUFF_VERSION}-${_tag}-none-*.whl; do
+      [ -f "${_cand}" ] && { _src="${_cand}"; break; }
+    done
+    if [ -z "${_src}" ]; then
+      printSoftError "No staged Ruff wheel for Python ${_pv}"
+      deactivate
+      return 1
+    fi
+    cp "${_src}" dist/ || { deactivate; return 1; }
+    printInfo "Staged $(basename "${_src}") for Python ${_pv}"
+    deactivate
+  done
+
+  _zopen_python_ensure_venv_for "$(_zopen_python_primary_version)" || return 1
+  _zopen_python_retag_wheel || { deactivate; return 1; }
+  _zopen_python_stamp_wheel
+  _rc=$?
+  deactivate
+  return ${_rc}
+}
+
+# Called once per interpreter after zopen-build installs that interpreter's
+# wheel into its test environment.
+zopen_python_test() {
+  RUFF_EXPECTED_VERSION="${RUFF_VERSION}" python - <<'PYEOF'
+import importlib.metadata
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+if hasattr(os, "set_tagging"):
+    os.set_tagging(sys.stdout.fileno(), 65535)
+
+failures = 0
+total = 0
+
+
+def check(label, function):
+    global failures, total
+    total += 1
+    try:
+        function()
+    except Exception as exc:
+        failures += 1
+        print(f"FAILED {label}: {exc}")
+    else:
+        print(f"PASSED {label}")
+
+
+import ruff
+
+expected = os.environ["RUFF_EXPECTED_VERSION"]
+binary = ruff.find_ruff_bin()
+
+
+def package_version():
+    assert importlib.metadata.version("ruff") == expected
+
+
+def binary_location():
+    assert os.path.isfile(binary), binary
+    assert os.access(binary, os.X_OK), binary
+
+
+def command_version():
+    result = subprocess.run([binary, "--version"], stdout=subprocess.PIPE)
+    assert result.returncode == 0
+    assert f"ruff {expected}".encode() in result.stdout
+
+
+def module_command():
+    result = subprocess.run(
+        [sys.executable, "-m", "ruff", "--version"], stdout=subprocess.PIPE
+    )
+    assert result.returncode == 0
+    assert f"ruff {expected}".encode() in result.stdout
+
+
+def lint_and_fix():
+    with tempfile.TemporaryDirectory() as directory:
+        source = Path(directory, "bad.py")
+        source.write_bytes(b"import os\nx=1\n")
+        result = subprocess.run([binary, "check", str(source)], stdout=subprocess.PIPE)
+        assert result.returncode == 1
+        assert b"F401" in result.stdout
+        assert subprocess.run([binary, "check", "--fix", str(source)]).returncode == 0
+        assert subprocess.run([binary, "check", str(source)]).returncode == 0
+
+
+def format_source():
+    with tempfile.TemporaryDirectory() as directory:
+        source = Path(directory, "format.py")
+        source.write_bytes(b"x=  1\n")
+        assert subprocess.run([binary, "format", "--check", str(source)]).returncode == 1
+        assert subprocess.run([binary, "format", str(source)]).returncode == 0
+        assert b"x = 1" in source.read_bytes()
+
+
+check("package_version", package_version)
+check("binary_location", binary_location)
+check("command_version", command_version)
+check("python_module_command", module_command)
+check("lint_and_fix", lint_and_fix)
+check("format_source", format_source)
+
+print(f"RUFF_WHEEL_TOTAL={total}")
+print(f"RUFF_WHEEL_FAILURES={failures}")
+raise SystemExit(1 if failures else 0)
+PYEOF
+}
+
+zopen_check_results() {
+  dir="$1"; pfx="$2"; chk="${dir}/${pfx}_check.log"
+
+  totalTests=$(grep -oE 'RUFF_WHEEL_TOTAL=[0-9]+' "${chk}" 2>/dev/null | cut -d= -f2 | awk '{s+=$1} END {print s+0}')
+  actualFailures=$(grep -oE 'RUFF_WHEEL_FAILURES=[0-9]+' "${chk}" 2>/dev/null | cut -d= -f2 | awk '{s+=$1} END {print s+0}')
+  runs=$(grep -c 'RUFF_WHEEL_TOTAL=' "${chk}" 2>/dev/null); runs=${runs:-0}
+  interpreters=$(grep -c 'Running tests with Python' "${chk}" 2>/dev/null); interpreters=${interpreters:-0}
+  if [ "${runs}" -lt "${interpreters}" ]; then
+    actualFailures=$((actualFailures + interpreters - runs))
+  fi
+
+  echo "actualFailures:${actualFailures}"
+  echo "totalTests:${totalTests}"
+  echo "expectedFailures:0"
+  echo "expectedTotalTests:${totalTests}"
+}
+
+# pip installs the native executable from the wheel under lib/python/bin. Keep
+# it binary-tagged and executable; _zopen_python_install links it into bin/.
+zopen_post_install() {
+  _ruff_bin="${ZOPEN_INSTALL_DIR}/lib/python/bin/ruff"
+  if [ ! -f "${_ruff_bin}" ]; then
+    printSoftError "Installed Ruff wheel did not provide ${_ruff_bin}"
+    return 1
+  fi
+  chmod +x "${_ruff_bin}"
+  chtag -b "${_ruff_bin}"
+}
+
+zopen_append_to_env() {
+  cat <<ZZ
+PYTHONPATH="\${PYTHONPATH}:\${PWD}/lib/python"
+export PYTHONPATH="\$(deleteDuplicateEntries "\$PYTHONPATH" ":")"
+ZZ
 }
 
 zopen_append_to_validate_install() {
   echo "ruff --version"
-  echo "ruff --help >/dev/null"
+  echo "python -c \"import ruff, importlib.metadata; assert importlib.metadata.version('ruff') == '${RUFF_VERSION}'; print(ruff.find_ruff_bin())\""
+  echo "python -m ruff --version"
 }
