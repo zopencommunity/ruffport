@@ -36,6 +36,8 @@ zopen_check_results() {
   if [ "${total}" -eq 0 ]; then failed=1; total=1; fi
   echo "actualFailures:${failed}"
   echo "totalTests:${total}"
+  echo "expectedFailures:0"
+  echo "expectedTotalTests:${total}"
 }
 
 zopen_init() {
